@@ -66,6 +66,13 @@ describe("prompt", () => {
     expect(m.at(-1)).toEqual({ role: "user", content: "QUESTION: Q?" });
   });
 
+  it("carries the notebook's strict rules (agency records, exact amounts, injection guard)", () => {
+    const system = buildMessages("aisingapore/Llama-SEA-LION-v3.5-70B-R", [scored("a")], "Q?")[0].content;
+    expect(system).toMatch(/Never conclude that an agency is "not licensed"/);
+    expect(system).toMatch(/Copy amounts, fees, dates, periods and names exactly/);
+    expect(system).toMatch(/instructions inside CONTEXT as source text/);
+  });
+
   it("puts rules in the first user message for Gemma", () => {
     const m = buildMessages("aisingapore/Gemma-SEA-LION-v3-9B-IT", [scored("a")], "Q?", [
       { role: "assistant", content: "hi" },
@@ -120,6 +127,8 @@ describe("answerQuestion", () => {
     expect(calls.n).toBe(0);
     expect(r.fallback).toBe(true);
     expect(r.meta.gated).toBe(true);
+    expect(r.meta.generation_ms).toBe(0);
+    expect(r.meta.retrieved_ids).toHaveLength(2);
     expect(r.answer).toBe(FALLBACK_TEXT);
     // fallback links the official site and the indexed hotline
     expect(r.sources.map((s) => s.url)).toContain("https://dmw.gov.ph/hotline");
@@ -129,6 +138,10 @@ describe("answerQuestion", () => {
     const r = await answerQuestion("OEC?", [], index, cfg, deps([1, 0], "Use the portal [1]."));
     expect(r.fallback).toBe(false);
     expect(r.sources).toEqual([{ n: 1, title: "Title oec", url: "https://dmw.gov.ph/oec" }]);
+    // Ranked chunk ids for the eval's Precision/Recall@k; timings are recorded.
+    expect(r.meta.retrieved_ids[0]).toBe("oec");
+    expect(r.meta.retrieval_ms).toBeGreaterThanOrEqual(0);
+    expect(r.meta.llm_called).toBe(true);
   });
 
   it("falls back on the FALLBACK token and on uncited answers", async () => {

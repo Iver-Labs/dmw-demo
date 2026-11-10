@@ -81,6 +81,9 @@ export async function POST(req: Request) {
         gated: result.meta.gated,
         fallback_reason: result.meta.fallback_reason,
         sources_count: result.sources.length,
+        // Stage timings of the original (uncached) answer.
+        retrieval_ms: result.meta.retrieval_ms,
+        generation_ms: result.meta.generation_ms,
         cached: Boolean(cached),
       },
     );

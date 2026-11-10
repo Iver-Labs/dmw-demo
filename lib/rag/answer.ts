@@ -21,7 +21,12 @@ export interface AnswerResult {
     gated: boolean;
     fallback_reason?: FallbackReason;
     retrieved_urls: string[];
+    /** Chunk ids in rank order (eval scores Precision/Recall@k and MRR against these). */
+    retrieved_ids: string[];
     llm_called: boolean;
+    /** Embed + search time, and SEA-LION time (0 when no call was made). */
+    retrieval_ms: number;
+    generation_ms: number;
   };
 }
 
@@ -64,33 +69,42 @@ export async function answerQuestion(
   const prevUser = [...history].reverse().find((t) => t.role === "user")?.content;
   const retrievalText = prevUser ? `${prevUser}\n${question}` : question;
 
+  const t0 = performance.now();
   const qvec = await deps.embed(expandQuery(retrievalText));
   const k = maxContextChunks(cfg.SEALION_MODEL, cfg.RETRIEVAL_TOP_K);
   const results = search(qvec, index.chunks, { topK: k, acronyms: findAcronyms(retrievalText) });
+  const retrieval_ms = Math.round(performance.now() - t0);
   const top = results.reduce((m, r) => Math.max(m, r.score), 0);
-  const base = { top_score: round(top), retrieved_urls: [...new Set(results.map((r) => r.url))] };
+  const base = {
+    top_score: round(top),
+    retrieved_urls: [...new Set(results.map((r) => r.url))],
+    retrieved_ids: results.map((r) => r.id),
+    retrieval_ms,
+  };
 
-  const fallback = (reason: FallbackReason, llm_called: boolean): AnswerResult => ({
+  const fallback = (reason: FallbackReason, llm_called: boolean, generation_ms = 0): AnswerResult => ({
     answer: FALLBACK_TEXT,
     sources: fallbackSources(index.chunks),
     fallback: true,
-    meta: { ...base, gated: reason === "gate", fallback_reason: reason, llm_called },
+    meta: { ...base, gated: reason === "gate", fallback_reason: reason, llm_called, generation_ms },
   });
 
   if (results.length === 0 || top < cfg.RETRIEVAL_MIN_SCORE) return fallback("gate", false);
 
+  const t1 = performance.now();
   const raw = await deps.chat(buildMessages(cfg.SEALION_MODEL, results, question, history));
+  const generation_ms = Math.round(performance.now() - t1);
   if (!raw || raw.trim().replace(/[.\s]/g, "").toUpperCase().startsWith(FALLBACK_TOKEN))
-    return fallback("model", true);
+    return fallback("model", true, generation_ms);
 
   const cited = applyCitations(raw, results);
-  if (!cited.grounded) return fallback("ungrounded", true);
+  if (!cited.grounded) return fallback("ungrounded", true, generation_ms);
 
   return {
     answer: cited.answer,
     sources: cited.sources,
     fallback: false,
-    meta: { ...base, gated: false, llm_called: true },
+    meta: { ...base, gated: false, llm_called: true, generation_ms },
   };
 }
 

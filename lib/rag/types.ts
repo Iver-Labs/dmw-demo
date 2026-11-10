@@ -1,4 +1,4 @@
-export const SECTIONS = ["faq", "oec-bm", "directory", "contact"] as const;
+export const SECTIONS = ["faq", "oec-bm", "guides", "directory", "contact"] as const;
 export type Section = (typeof SECTIONS)[number];
 
 /** One curated page from content/kb/<slug>.md. */
@@ -9,6 +9,9 @@ export interface KbDoc {
   section: Section;
   retrieved: string;
   body: string;
+  /** Optional per-file window size/overlap (characters) for long sections; defaults in chunk.ts. */
+  chunkSize?: number;
+  chunkOverlap?: number;
 }
 
 /** A retrievable piece of a KbDoc. `text` already carries its "title > heading" header. */

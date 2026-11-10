@@ -2,14 +2,29 @@ import matter from "gray-matter";
 import { SECTIONS, type Chunk, type KbDoc, type Section } from "./types";
 
 /** Recorded in index.meta.json; change it whenever chunking behaviour changes. */
-export const CHUNKER_ID = "heading-split-1500-overlap-200";
+export const CHUNKER_ID = "heading-split-1500-overlap-200+per-file-v2";
 export const CHUNK_SIZE = 1500;
 export const CHUNK_OVERLAP = 200;
+
+/**
+ * Bounds for per-file chunk_size / chunk_overlap. In the group notebook, overlap at 25% of the
+ * chunk size (Run D, 800/200) collapsed retrieval (P@3 0.019), while ~12% (800/100, 600/75) did best.
+ */
+export const MIN_CHUNK_SIZE = 200;
+export const MAX_CHUNK_SIZE = 4000;
+export const MAX_OVERLAP_RATIO = 0.25;
+
+function optionalInt(value: unknown, name: string, fail: (msg: string) => never): number | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0)
+    fail(`${name} must be a whole number`);
+  return value as number;
+}
 
 /** Parse one content/kb Markdown file (frontmatter + body). Throws on bad frontmatter. */
 export function parseKbDoc(slug: string, raw: string): KbDoc {
   const { data, content } = matter(raw);
-  const fail = (msg: string) => {
+  const fail = (msg: string): never => {
     throw new Error(`content/kb/${slug}.md: ${msg}`);
   };
   if (typeof data.title !== "string" || !data.title.trim()) fail("missing title");
@@ -20,13 +35,26 @@ export function parseKbDoc(slug: string, raw: string): KbDoc {
   const retrieved =
     data.retrieved instanceof Date ? data.retrieved.toISOString().slice(0, 10) : String(data.retrieved ?? "");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(retrieved)) fail("retrieved must be YYYY-MM-DD");
+
+  const chunkSize = optionalInt(data.chunk_size, "chunk_size", fail);
+  const chunkOverlap = optionalInt(data.chunk_overlap, "chunk_overlap", fail);
+  if (chunkSize !== undefined && (chunkSize < MIN_CHUNK_SIZE || chunkSize > MAX_CHUNK_SIZE))
+    fail(`chunk_size must be between ${MIN_CHUNK_SIZE} and ${MAX_CHUNK_SIZE}`);
+  const size = chunkSize ?? CHUNK_SIZE;
+  if (chunkOverlap !== undefined && chunkOverlap > size * MAX_OVERLAP_RATIO)
+    fail(
+      `chunk_overlap must be at most ${MAX_OVERLAP_RATIO * 100}% of chunk_size (${Math.floor(size * MAX_OVERLAP_RATIO)})`,
+    );
+
   return {
     slug,
-    title: data.title.trim(),
-    sourceUrl: data.source_url,
+    title: (data.title as string).trim(),
+    sourceUrl: data.source_url as string,
     section: data.section as Section,
     retrieved,
     body: content.trim(),
+    ...(chunkSize !== undefined && { chunkSize }),
+    ...(chunkOverlap !== undefined && { chunkOverlap }),
   };
 }
 
@@ -84,7 +112,11 @@ export function chunkDoc(doc: KbDoc): Chunk[] {
     // Keep the FAQ question in the text, not only in the header.
     const body = doc.section === "faq" && part.heading ? `${part.heading}\n${part.body}` : part.body;
     if (!body.trim()) continue;
-    for (const piece of windows(body)) {
+    const size = doc.chunkSize ?? CHUNK_SIZE;
+    // A custom size without a custom overlap keeps the default ratio (200/1500 ≈ 13%).
+    const overlap =
+      doc.chunkOverlap ?? (doc.chunkSize ? Math.round((size * CHUNK_OVERLAP) / CHUNK_SIZE) : CHUNK_OVERLAP);
+    for (const piece of windows(body, size, overlap)) {
       chunks.push({
         id: `${doc.slug}#${chunks.length}`,
         text: `${header}\n\n${piece}`,

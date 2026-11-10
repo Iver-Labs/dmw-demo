@@ -16,6 +16,7 @@ export const NAV = [
   { href: "/", label: "Home", fil: "Home" },
   { href: "/faqs", label: "FAQs", fil: "Mga FAQ" },
   { href: "/oec-balik-manggagawa", label: "OEC & Balik-Manggagawa", fil: "OEC at Balik-Manggagawa" },
+  { href: "/guides", label: "Guides", fil: "Mga gabay" },
   { href: "/directory", label: "Office Directory", fil: "Direktoryo ng opisina" },
   { href: "/contact", label: "Contact & Hotlines", fil: "Kontak at hotline" },
 ] as const;
