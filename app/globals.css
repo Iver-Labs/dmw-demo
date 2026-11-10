@@ -1,31 +1,75 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #0f172a;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, Arial, sans-serif;
+/*
+ * Design 01 / Classic DMW Portal (DMW-Website-Designs.pdf, "21 Shared Components").
+ * DMW-inspired palette; no official seal, logo or wordmark.
+ */
+@theme {
+  --color-masthead: #162556;
+  --color-masthead-2: #22397f;
+  --color-action: #155dfc;
+  --color-action-hover: #0e4bd6;
+  --color-ink: #17243c;
+  --color-muted: #53627a;
+  --color-surface: #eef3ff;
+  --color-accent: #f6c84a;
+  --color-line: #d7deeb;
+  --color-wash: #f4f6fa;
+  --font-sans: Arial, "Helvetica Neue", Helvetica, system-ui, sans-serif;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: #ffffff;
+  color: var(--color-ink);
   font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.5;
 }
 
-/* Minimal typography for Markdown rendered from content/kb. */
+/* Keyboard focus: 2 px action-blue ring (design: "Keyboard focus"). In the base layer so a
+   component can swap it for its own ring (the assistant composer does). */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--color-action);
+    outline-offset: 2px;
+  }
+}
+
+/* 1,248 px content column with 20 px mobile / 32 px desktop gutters. */
+@utility wrap {
+  margin-inline: auto;
+  width: 100%;
+  max-width: 78rem;
+  padding-inline: 1.25rem;
+  @media (width >= 40rem) {
+    padding-inline: 2rem;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex min-h-12 items-center justify-center gap-2.5 rounded-lg bg-action px-5 font-semibold text-white transition-colors hover:bg-action-hover;
+  }
+  .btn-secondary {
+    @apply inline-flex min-h-12 items-center justify-center gap-2.5 rounded-lg border border-line bg-white px-5 font-semibold text-action transition-colors hover:border-action;
+  }
+  .btn-on-dark {
+    @apply inline-flex min-h-12 items-center justify-center gap-2.5 rounded-lg border border-white/40 px-5 font-semibold text-white transition-colors hover:bg-white/10;
+  }
+  .eyebrow {
+    @apply text-xs font-bold tracking-[0.16em] text-action uppercase;
+  }
+}
+
+/* Typography for Markdown rendered from content/kb. */
 .prose-kb {
-  @apply space-y-3 leading-relaxed text-slate-800;
+  @apply space-y-3 leading-relaxed text-ink;
 }
 .prose-kb h2 {
-  @apply mt-6 text-lg font-semibold text-slate-900;
+  @apply mt-6 text-lg font-bold text-ink;
 }
 .prose-kb h3 {
-  @apply mt-4 font-semibold text-slate-900;
+  @apply mt-4 font-bold text-ink;
 }
 .prose-kb ul {
   @apply list-disc space-y-1 pl-6;
@@ -34,12 +78,15 @@ body {
   @apply list-decimal space-y-1 pl-6;
 }
 .prose-kb a {
-  @apply text-blue-800 underline;
+  @apply font-semibold text-action underline underline-offset-2;
 }
 .prose-kb table {
-  @apply w-full border-collapse text-sm;
+  @apply block w-full overflow-x-auto text-sm md:table md:border-collapse;
 }
 .prose-kb th,
 .prose-kb td {
-  @apply border border-slate-200 px-2 py-1 text-left;
+  @apply border border-line px-3 py-2 text-left;
+}
+.prose-kb th {
+  @apply bg-wash font-semibold;
 }
