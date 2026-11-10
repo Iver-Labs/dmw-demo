@@ -1,0 +1,30 @@
+substitutions:
+  _REGION: asia-southeast1
+  _TAG: manual # triggers set this to $SHORT_SHA
+  _IMAGE: ${_REGION}-docker.pkg.dev/${PROJECT_ID}/dmw-demo/web:${_TAG}
+options:
+  dynamicSubstitutions: true
+  logging: CLOUD_LOGGING_ONLY
+steps:
+  - id: check-index # uses only Node built-ins, no npm install
+    name: node:24-slim
+    entrypoint: npm
+    args: ["run", "check:index"]
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    env: ["DOCKER_BUILDKIT=1"]
+    args: ["build", "--platform=linux/amd64", "-t", "${_IMAGE}", "."]
+  - id: push
+    name: gcr.io/cloud-builders/docker
+    args: ["push", "${_IMAGE}"]
+  - id: render
+    name: gcr.io/cloud-builders/gcloud
+    entrypoint: bash
+    args:
+      [
+        "-c",
+        "sed -e 's|PROJECT_ID|${PROJECT_ID}|g' -e 's|GIT_SHA|${_TAG}|g' service.yaml > service.rendered.yaml",
+      ]
+  - id: deploy
+    name: gcr.io/cloud-builders/gcloud
+    args: ["run", "services", "replace", "service.rendered.yaml", "--region", "${_REGION}"]

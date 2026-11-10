@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #0f172a;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, Arial, sans-serif;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
+
+/* Minimal typography for Markdown rendered from content/kb. */
+.prose-kb {
+  @apply space-y-3 leading-relaxed text-slate-800;
+}
+.prose-kb h2 {
+  @apply mt-6 text-lg font-semibold text-slate-900;
+}
+.prose-kb h3 {
+  @apply mt-4 font-semibold text-slate-900;
+}
+.prose-kb ul {
+  @apply list-disc space-y-1 pl-6;
+}
+.prose-kb ol {
+  @apply list-decimal space-y-1 pl-6;
+}
+.prose-kb a {
+  @apply text-blue-800 underline;
+}
+.prose-kb table {
+  @apply w-full border-collapse text-sm;
+}
+.prose-kb th,
+.prose-kb td {
+  @apply border border-slate-200 px-2 py-1 text-left;
+}

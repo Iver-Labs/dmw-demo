@@ -1,0 +1,6 @@
+.next
+node_modules
+data/index.json
+package-lock.json
+eval/results
+content/kb

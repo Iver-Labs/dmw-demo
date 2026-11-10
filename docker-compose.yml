@@ -1,0 +1,31 @@
+services:
+  web:
+    build:
+      context: .
+      target: runner
+    image: dmw-demo:local
+    platform: linux/amd64 # same architecture as Cloud Run
+    ports:
+      - "8080:8080"
+    env_file: .env.local # never committed
+    read_only: true # proves the app writes nowhere unexpected
+    volumes:
+      - type: tmpfs
+        target: /app/.next/cache
+        tmpfs:
+          mode: 01777
+      - type: tmpfs
+        target: /tmp
+    stop_grace_period: 10s # matches Cloud Run's SIGTERM window
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8080/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 15s

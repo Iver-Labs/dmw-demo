@@ -1,0 +1,51 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: dmw-demo
+  labels:
+    cloud.googleapis.com/location: asia-southeast1
+  annotations:
+    run.googleapis.com/ingress: all
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "2"
+        run.googleapis.com/cpu-throttling: "true"
+        run.googleapis.com/startup-cpu-boost: "true"
+    spec:
+      serviceAccountName: dmw-demo-run@PROJECT_ID.iam.gserviceaccount.com
+      containerConcurrency: 80
+      timeoutSeconds: 60
+      containers:
+        - image: asia-southeast1-docker.pkg.dev/PROJECT_ID/dmw-demo/web:GIT_SHA
+          ports:
+            - name: http1
+              containerPort: 8080
+          resources:
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          env:
+            - name: SEALION_MODEL
+              value: aisingapore/Llama-SEA-LION-v3.5-70B-R
+            - name: SEALION_THINKING_OFF
+              value: "true"
+            - name: EMBED_MODEL
+              value: gemini-embedding-001
+            - name: EMBED_DIMS
+              value: "768"
+            - name: RETRIEVAL_MIN_SCORE
+              value: "0.55"
+            - name: SEALION_API_KEY
+              valueFrom:
+                secretKeyRef: { name: sealion-api-key, key: "1" }
+            - name: GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef: { name: gemini-api-key, key: "1" }
+          startupProbe:
+            httpGet: { path: /api/health, port: 8080 }
+            periodSeconds: 3
+            timeoutSeconds: 2
+            failureThreshold: 20
