@@ -86,10 +86,15 @@ export const QUICK_SERVICES = [
   },
 ] as const;
 
+/**
+ * Starter chips: only questions the ingested content can answer (they are cached per instance).
+ * When the oec-bm, directory and contact pages are curated, add back e.g. "Paano kumuha ng OEC
+ * exemption?", "Who qualifies as a Balik-Manggagawa?" and "What is the DMW hotline?".
+ */
 export const SUGGESTED_QUESTIONS = [
-  "Paano kumuha ng OEC exemption?",
-  "Who qualifies as a Balik-Manggagawa?",
-  "Kailangan ko pa ba ng OEC kung babalik ako sa parehong employer?",
-  "Saan ang DMW regional office sa Cebu?",
-  "What is the DMW hotline?",
+  "Hanggang kailan valid ang OEC?",
+  "Magkano ang max na placement fee na pwedeng i-charge ng agency?",
+  "How can I tell if a recruiter is illegal?",
+  "Sino ang magbabayad ng repatriation kapag na-terminate ako dahil nagkasakit?",
+  "What should I consider before working abroad?",
 ] as const;

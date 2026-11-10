@@ -1,0 +1,8 @@
+{
+  "embedModel": "Xenova/all-MiniLM-L6-v2",
+  "dims": 384,
+  "chunks": 75,
+  "contentHash": "sha256:7746a2295eb745b36c35bac2558d85209c215da966bc9da7c6e4cbefebdbd54e",
+  "chunker": "heading-split-1500-overlap-200+per-file-v2",
+  "builtAt": "2026-11-10T11:47:29Z"
+}

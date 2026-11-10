@@ -8,7 +8,7 @@ export default function Page() {
     <SectionPage
       section="guides"
       title="Guides"
-      intro="Pre-employment orientation for first-time OFWs: what to check before you sign, fees, your contract and coming home."
+      intro="The Pre-Employment Orientation Seminar (PEOS) modules for first-time OFWs. They date from before DMW replaced POEA, so some offices, fees and websites have changed: check current requirements at dmw.gov.ph."
     />
   );
 }

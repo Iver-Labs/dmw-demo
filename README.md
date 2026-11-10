@@ -96,7 +96,24 @@ account), then `gcloud builds submit --config cloudbuild.yaml --region asia-sout
 
 ## Acceptance tests and eval results
 
-_To fill in: the 12 container acceptance tests, image size, and the v1/v2 eval table._
+_Still to fill in: the 12 container acceptance tests on the final image._
+
+### Eval v1 (2026-11-10, local, PEOS content only)
+
+`npm run eval` with `Llama-SEA-LION-v3-70B-IT`, local `all-MiniLM-L6-v2`, top-K 3, gate 0.3. Only the
+PEOS module is ingested, so OEC/BM, directory and agency questions are expected to fall back.
+
+| Metric                                                 | v1                                               | Group notebook, Run M (same PEOS questions)                    |
+| ------------------------------------------------------ | ------------------------------------------------ | -------------------------------------------------------------- |
+| Recall@3 / MRR, PEOS questions (P1–P3 × EN/TL/Taglish) | **0.778 / 0.722**                                | 0.667 / 0.556                                                  |
+| English · Taglish · Filipino Recall@3                  | 1.00 · 1.00 · 0.25                               | —                                                              |
+| PEOS answers correct with citation                     | 7 of 9 (the 2 Filipino-only questions fall back) | Filipino P2/P3 got invented answers (₱10,000 fee; wrong payer) |
+| Invented answers                                       | **0** after adding prompt rule 11                | —                                                              |
+| Out-of-scope refusal                                   | 3 of 3                                           | —                                                              |
+| Median latency (retrieval / generation)                | 3.6 s (7 ms / 3.6 s)                             | ~4.8 s on a Colab T4                                           |
+
+Known weakness: short Filipino questions such as "Ano ang PRICEST?" (tracked as `G1-TL`) retrieve the
+wrong chunk because MiniLM is English-only. That is the case for the multilingual A/B test.
 
 ## License
 
