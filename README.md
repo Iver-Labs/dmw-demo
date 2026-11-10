@@ -61,8 +61,8 @@ so a misconfigured Cloud Run revision never goes live.
 
 ```
 app/                 pages (rendered from content/kb) + api/chat, api/health
-components/chat/     ChatWidget, SuggestedQuestions, SourceChips
-components/site/     banner/header/footer, Markdown, SectionPage
+components/chat/     ChatWidget (Design 01 assistant), SourceCards, SuggestedQuestions, labels (EN/FIL)
+components/site/     banner, utility bar, masthead, section nav, footer, icons, Markdown, SectionPage
 lib/env.ts           zod env schema (names only in errors)
 lib/startup.ts       env → index → meta check → ready (called by instrumentation.ts)
 lib/rag/             glossary, chunk, embed, search, prompt, sealion, citations, fallback, answer
@@ -79,3 +79,11 @@ account), then `gcloud builds submit --config cloudbuild.yaml --region asia-sout
 ## Acceptance tests and eval results
 
 _To fill in: the 12 container acceptance tests, image size, and the v1/v2 eval table._
+
+## License
+
+The code is released under the [MIT License](LICENSE).
+
+Text adapted from dmw.gov.ph (in `content/kb/` and the generated `data/` index) belongs to the
+Department of Migrant Workers and is not covered by this license. This project is not affiliated with
+DMW, and the DMW name is used only to describe the information it links to.
