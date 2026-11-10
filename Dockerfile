@@ -9,7 +9,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # ---------- deps: exact lockfile install (incl. dev deps for the build) ----------
 FROM base AS deps
 COPY package.json package-lock.json ./
-RUN --mount=type=cache,target=/root/.npm npm ci
+# onnxruntime-node's install script otherwise downloads GPU (CUDA) binaries from NuGet;
+# embeddings run on CPU, so skip it.
+RUN --mount=type=cache,target=/root/.npm ONNXRUNTIME_NODE_INSTALL=skip npm ci
 
 # ---------- builder: compile the app ----------
 FROM base AS builder
@@ -18,6 +20,8 @@ COPY . .
 # The index is built ahead of time by `npm run ingest` and committed.
 # Fail fast if it's missing instead of shipping a bot with no knowledge.
 RUN test -s data/index.json && test -s data/index.meta.json
+# Local embedding model (all-MiniLM-L6-v2): pinned revision, every file SHA-256 verified.
+RUN node scripts/fetch-model.mjs
 RUN npm run build
 
 # ---------- runner: the only stage that ships ----------
@@ -37,6 +41,7 @@ COPY --from=builder --chown=node:node /app/.next/standalone ./
 COPY --from=builder --chown=node:node /app/.next/static ./.next/static
 COPY --from=builder --chown=node:node /app/public ./public
 COPY --from=builder --chown=node:node /app/data ./data
+COPY --from=builder --chown=node:node /app/models ./models
 RUN mkdir -p .next/cache && chown node:node .next/cache
 
 USER node

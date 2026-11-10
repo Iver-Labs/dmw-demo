@@ -46,3 +46,11 @@ next-env.d.ts
 
 # docker / cloud build
 service.rendered.yaml
+
+# local embedding model (npm run model:fetch)
+/models/
+
+# editor swap/backup files (may hold copies of .env.local)
+*.swp
+*.swo
+*~

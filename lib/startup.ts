@@ -1,5 +1,6 @@
 import { parseEnv } from "./env";
 import { log } from "./log";
+import { embedQuery } from "./rag/embed";
 import { indexMismatch, loadIndex, setIndexState } from "./rag/index-store";
 
 /**
@@ -34,6 +35,16 @@ export async function startup(): Promise<void> {
 
   const mismatch = indexMismatch(index.meta, env);
   if (mismatch) return fail(`Index mismatch: ${mismatch}`, {});
+
+  // Load the local embedding model now: fails fast if models/ is missing, and the first
+  // chat request after a cold start doesn't pay the load time.
+  try {
+    await embedQuery("warm-up", { model: env.EMBED_MODEL, dims: env.EMBED_DIMS });
+  } catch (err) {
+    return fail("Embedding model failed to load: run npm run model:fetch", {
+      error: err instanceof Error ? err.name : "unknown",
+    });
+  }
 
   setIndexState({ status: "ready", index });
   log.info("Ready", {

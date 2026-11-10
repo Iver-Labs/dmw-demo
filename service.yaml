@@ -29,21 +29,18 @@ spec:
               memory: 512Mi
           env:
             - name: SEALION_MODEL
-              value: aisingapore/Llama-SEA-LION-v3.5-70B-R
+              value: aisingapore/Llama-SEA-LION-v3-70B-IT
             - name: SEALION_THINKING_OFF
               value: "true"
             - name: EMBED_MODEL
-              value: gemini-embedding-001
+              value: Xenova/all-MiniLM-L6-v2
             - name: EMBED_DIMS
-              value: "768"
+              value: "384"
             - name: RETRIEVAL_MIN_SCORE
-              value: "0.55"
+              value: "0.3"
             - name: SEALION_API_KEY
               valueFrom:
                 secretKeyRef: { name: sealion-api-key, key: "1" }
-            - name: GEMINI_API_KEY
-              valueFrom:
-                secretKeyRef: { name: gemini-api-key, key: "1" }
           startupProbe:
             httpGet: { path: /api/health, port: 8080 }
             periodSeconds: 3

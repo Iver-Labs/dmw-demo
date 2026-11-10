@@ -15,14 +15,16 @@ const required = (name: string) =>
 export const envSchema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   SEALION_API_KEY: required("SEALION_API_KEY"),
-  GEMINI_API_KEY: required("GEMINI_API_KEY"),
+  // Embeddings run locally (lib/rag/embed.ts), so SEA-LION's is the only key.
   SEALION_BASE_URL: z.url().default("https://api.sea-lion.ai/v1"),
   SEALION_MODEL: required("SEALION_MODEL"),
   SEALION_THINKING_OFF: bool.default(true),
   EMBED_MODEL: required("EMBED_MODEL"),
   EMBED_DIMS: z.coerce.number().int().positive(),
-  RETRIEVAL_TOP_K: z.coerce.number().int().min(1).max(20).default(6),
-  RETRIEVAL_MIN_SCORE: z.coerce.number().min(0).max(1).default(0.55),
+  // 3 = the group notebook's best run (Run M); top-K 5 lowered its precision.
+  RETRIEVAL_TOP_K: z.coerce.number().int().min(1).max(20).default(3),
+  // Provisional for MiniLM (Taglish questions score ~0.3 against English passages); tune with npm run eval.
+  RETRIEVAL_MIN_SCORE: z.coerce.number().min(0).max(1).default(0.3),
   LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
   CHAT_RATE_LIMIT_PER_MIN: z.coerce.number().int().positive().default(5),
   CHAT_MAX_INPUT_CHARS: z.coerce.number().int().positive().default(500),

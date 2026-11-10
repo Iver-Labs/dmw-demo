@@ -38,8 +38,7 @@ export interface AnswerDeps {
 
 export function defaultDeps(env: Env): AnswerDeps {
   return {
-    embed: (text) =>
-      embedQuery(text, { apiKey: env.GEMINI_API_KEY, model: env.EMBED_MODEL, dims: env.EMBED_DIMS }),
+    embed: (text) => embedQuery(text, { model: env.EMBED_MODEL, dims: env.EMBED_DIMS }),
     chat: (messages) =>
       chatCompletion(messages, {
         baseUrl: env.SEALION_BASE_URL,

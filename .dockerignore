@@ -1,11 +1,16 @@
 # dependencies and build output (rebuilt inside the image)
 node_modules
+# fetched and verified inside the build instead
+models
 .next
 out
 
 # secrets: never enter the image
 .env
 .env.*
+*.swp
+*.swo
+*~
 !.env.example
 *.pem
 *.key

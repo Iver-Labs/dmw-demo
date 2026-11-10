@@ -6,19 +6,22 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "cp -r public data .next/standalone/ && cp -r .next/static .next/standalone/.next/ && cd .next/standalone && NODE_ENV=production node --env-file-if-exists=../../.env.local server.js",
+    "start": "cp -r public data models .next/standalone/ && cp -r .next/static .next/standalone/.next/ && cd .next/standalone && NODE_ENV=production node --env-file-if-exists=../../.env.local server.js",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "ingest": "node --env-file-if-exists=.env.local --import tsx scripts/ingest.ts",
+    "ingest": "node scripts/fetch-model.mjs && node --env-file-if-exists=.env.local --import tsx scripts/ingest.ts",
     "check:index": "node scripts/check-index.mjs",
-    "eval": "node --env-file-if-exists=.env.local --import tsx scripts/eval.ts",
-    "verify": "npm run typecheck && npm run lint && npm run test && npm run format:check"
+    "eval": "node scripts/fetch-model.mjs && node --env-file-if-exists=.env.local --import tsx scripts/eval.ts",
+    "verify": "npm run typecheck && npm run lint && npm run test && npm run format:check",
+    "model:fetch": "node scripts/fetch-model.mjs",
+    "predev": "node scripts/fetch-model.mjs"
   },
   "dependencies": {
+    "@huggingface/transformers": "4.3.1",
     "gray-matter": "4.0.3",
     "next": "16.4.6",
     "react": "19.3.0",

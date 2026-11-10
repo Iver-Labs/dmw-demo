@@ -1,7 +1,8 @@
 /**
- * npm run ingest — content/kb/*.md → chunks → Gemini embeddings → data/index.json + index.meta.json.
+ * npm run ingest — content/kb/*.md → chunks → local MiniLM embeddings → data/index.json + index.meta.json.
  * Run it outside Docker, then commit the content and both data files together.
- * Needs GEMINI_API_KEY, EMBED_MODEL and EMBED_DIMS (read from .env.local).
+ * Needs EMBED_MODEL and EMBED_DIMS (read from .env.local) and the model in models/
+ * (`npm run ingest` fetches and verifies it first). No API key.
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { CHUNKER_ID, chunkDoc } from "../lib/rag/chunk";
@@ -11,8 +12,7 @@ import { loadKbDocs } from "../lib/rag/kb";
 import type { IndexedChunk, IndexMeta } from "../lib/rag/types";
 import { contentHash } from "./lib/content-hash.mjs"; // shared with check-index
 
-const BATCH = 50;
-const PAUSE_MS = 1_000; // stay well inside the free tier's per-minute limits
+const BATCH = 256; // progress-report granularity; embed.ts runs 32 texts per forward pass
 
 function need(name: string): string {
   const v = process.env[name]?.trim();
@@ -24,7 +24,6 @@ function need(name: string): string {
 }
 
 async function main() {
-  const apiKey = need("GEMINI_API_KEY");
   const model = need("EMBED_MODEL");
   const dims = Number(need("EMBED_DIMS"));
 
@@ -42,13 +41,12 @@ async function main() {
     const vectors = await embedBatch(
       batch.map((c) => c.text),
       "RETRIEVAL_DOCUMENT",
-      { apiKey, model, dims, timeoutMs: 60_000 },
+      { model, dims },
     );
     batch.forEach((c, j) =>
       indexed.push({ ...c, vector: Array.from(vectors[j], (x) => Math.round(x * 1e6) / 1e6) }),
     );
     console.log(`ingest: embedded ${Math.min(i + BATCH, chunks.length)}/${chunks.length}`);
-    if (i + BATCH < chunks.length) await new Promise((r) => setTimeout(r, PAUSE_MS));
   }
 
   const meta: IndexMeta = {
