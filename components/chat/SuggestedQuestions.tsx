@@ -11,7 +11,7 @@ export function SuggestedQuestions({
 }) {
   return (
     <div>
-      <p className="mb-2 text-[11px] font-bold tracking-[0.14em] text-muted uppercase">{label}</p>
+      <p className="eyebrow mb-2 text-muted">{label}</p>
       <ul className="flex flex-wrap gap-2">
         {SUGGESTED_QUESTIONS.map((q) => (
           <li key={q}>
@@ -19,7 +19,7 @@ export function SuggestedQuestions({
               type="button"
               disabled={disabled}
               onClick={() => onPick(q)}
-              className="min-h-11 rounded-lg border border-line bg-white px-3.5 py-2 text-left text-sm font-semibold text-ink transition-colors hover:border-action hover:text-action disabled:opacity-50"
+              className="press min-h-11 rounded-lg border border-line bg-white px-3.5 py-2 text-left text-sm font-semibold text-ink hover:border-action hover:text-action disabled:opacity-40"
             >
               {q}
             </button>

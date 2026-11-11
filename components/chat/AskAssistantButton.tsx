@@ -15,7 +15,7 @@ export function AskAssistantButton({
     <button
       type="button"
       aria-haspopup="dialog"
-      className={className}
+      className={`${className} ps-[18px]`}
       onClick={() => window.dispatchEvent(new Event(OPEN_ASSISTANT_EVENT))}
     >
       <Icon name="chat" className="size-5" />

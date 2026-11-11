@@ -24,7 +24,8 @@ export function SkipLink() {
 /** Guardrail: permanent, non-dismissible unofficial banner on every page. */
 export function UnofficialBanner() {
   return (
-    <div role="note" className="bg-action px-4 py-1.5 text-center text-[13px] leading-snug text-white">
+    <div role="note" className="bg-notice px-4 py-2 text-center text-caption text-notice-ink">
+      <Icon name="info" weight="regular" className="mr-1.5 inline size-4 -translate-y-px align-middle" />
       {BANNER_TEXT.replace("dmw.gov.ph.", "")}
       <a
         href={OFFICIAL_SITE}
@@ -53,7 +54,7 @@ export function UtilityBar() {
           className="ml-auto inline-flex min-h-11 items-center gap-1.5 text-action hover:underline"
         >
           Official DMW website
-          <Icon name="external" className="size-4" />
+          <Icon name="external" weight="regular" className="size-4" />
           <NewTab />
         </a>
       </div>
@@ -64,16 +65,14 @@ export function UtilityBar() {
 /** Navy department-style masthead. Neutral globe mark, never the DMW seal. */
 export function Masthead() {
   return (
-    <header className="bg-masthead text-white">
+    <header className="on-dark bg-masthead text-white">
       <div className="wrap flex items-center gap-4 py-5 md:gap-5 md:py-6">
         <Link href="/" className="flex min-w-0 items-center gap-4 md:gap-5">
           <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-white text-masthead md:size-16">
-            <Icon name="globe" className="size-7 md:size-9" />
+            <Icon name="globe" weight="bold" className="size-7 md:size-9" />
           </span>
           <span className="min-w-0">
-            <span className="block text-[11px] font-bold tracking-[0.18em] text-white/80 uppercase md:text-xs">
-              Your guide to DMW information
-            </span>
+            <span className="eyebrow block text-white/80">Your guide to DMW information</span>
             <span className="block text-2xl leading-tight font-bold md:text-4xl">{SITE_NAME}</span>
             <span className="block text-sm text-white/85 md:text-base" lang="fil">
               Gabay sa bawat hakbang ng iyong paglalakbay.
@@ -91,7 +90,7 @@ export function Masthead() {
 
 export function GuidanceStrip() {
   return (
-    <p className="bg-action px-4 py-2 text-center text-[13px] text-white">
+    <p className="border-b border-line bg-white px-4 py-2 text-center text-sm text-muted">
       Find guidance here. Complete transactions on official DMW portals.
     </p>
   );
@@ -104,7 +103,7 @@ export function SiteFooter() {
     { href: OFFICIAL_ONLINE_SERVICES, label: "DMW Online Services" },
   ];
   return (
-    <footer className="mt-auto bg-masthead text-white">
+    <footer className="on-dark mt-auto bg-masthead text-white">
       <div className="wrap grid gap-8 py-10 md:grid-cols-[1.5fr_1fr_1fr]">
         <div>
           <p className="text-2xl font-bold">{SITE_NAME}</p>
@@ -114,7 +113,7 @@ export function SiteFooter() {
           </p>
         </div>
         <nav aria-label="Explore">
-          <p className="text-xs font-bold tracking-[0.14em] text-white/75 uppercase">Explore</p>
+          <p className="eyebrow text-white/75">Explore</p>
           <ul className="mt-2">
             {NAV.map((n) => (
               <li key={n.href}>
@@ -126,7 +125,7 @@ export function SiteFooter() {
           </ul>
         </nav>
         <nav aria-label="Official resources">
-          <p className="text-xs font-bold tracking-[0.14em] text-white/75 uppercase">Official resources</p>
+          <p className="eyebrow text-white/75">Official resources</p>
           <ul className="mt-2">
             {official.map((o) => (
               <li key={o.href}>
@@ -137,7 +136,7 @@ export function SiteFooter() {
                   className="inline-flex min-h-11 items-center gap-1.5 hover:underline"
                 >
                   {o.label}
-                  <Icon name="external" className="size-4" />
+                  <Icon name="external" weight="regular" className="size-4" />
                   <NewTab />
                 </a>
               </li>
@@ -146,7 +145,7 @@ export function SiteFooter() {
         </nav>
       </div>
       <div className="border-t border-white/15">
-        <div className="wrap flex flex-wrap justify-between gap-x-8 gap-y-2 py-5 text-[13px] text-white/75">
+        <div className="wrap flex flex-wrap justify-between gap-x-8 gap-y-2 py-5 text-caption text-white/75">
           <p>Independent project. Information assistance only. This demo collects no personal data.</p>
           <p>Content adapted from dmw.gov.ph, retrieved {CONTENT_RETRIEVED}; may be outdated.</p>
         </div>

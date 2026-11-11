@@ -1,4 +1,7 @@
-/** Small stroke icons (24×24, currentColor). Decorative unless a label is given. */
+/**
+ * Small stroke icons (24×24, currentColor). Decorative unless a label is given. The stroke does not
+ * scale with size, so `weight` sets the rendered width to match the adjacent text weight.
+ */
 const PATHS = {
   globe:
     "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z M3.5 9h17 M3.5 15h17 M12 3c2.5 2.6 3.7 5.6 3.7 9s-1.2 6.4-3.7 9c-2.5-2.6-3.7-5.6-3.7-9S9.5 5.6 12 3Z",
@@ -20,7 +23,10 @@ const PATHS = {
   close: "M6 6l12 12 M18 6 6 18",
   doc: "M6 3h8.5L19 7.5V21H6V3Z M14 3v5h5 M9 12.5h7 M9 16.5h7",
   check: "M5 12.5l4.5 4.5L19 7.5",
+  info: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z M12 11v5.5 M12 7.8v.1",
 } as const;
+
+const STROKE = { regular: 1.5, semibold: 2, bold: 2.5 } as const;
 
 export type IconName = keyof typeof PATHS;
 
@@ -28,17 +34,20 @@ export function Icon({
   name,
   className = "size-5",
   label,
+  weight = "semibold",
 }: {
   name: IconName;
   className?: string;
   label?: string;
+  /** Weight of the text beside the icon: 400 regular, 500–600 semibold, 700 bold. */
+  weight?: keyof typeof STROKE;
 }) {
   return (
     <svg
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.75}
+      strokeWidth={STROKE[weight]}
       strokeLinecap="round"
       strokeLinejoin="round"
       className={className}
@@ -47,7 +56,7 @@ export function Icon({
       aria-label={label}
       focusable="false"
     >
-      <path d={PATHS[name]} />
+      <path d={PATHS[name]} vectorEffect="non-scaling-stroke" />
     </svg>
   );
 }
@@ -61,46 +70,60 @@ export function NewTab({ fil = false }: { fil?: boolean }) {
 export function HeroArt({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 320 230" className={className} aria-hidden="true" focusable="false">
-      <circle cx="170" cy="115" r="108" fill="#ffffff" fillOpacity="0.06" />
-      <g fill="none" stroke="#ffffff" strokeOpacity="0.14" strokeWidth="1.5">
+      <circle cx="170" cy="115" r="108" className="fill-white" fillOpacity="0.06" />
+      <g fill="none" className="stroke-white" strokeOpacity="0.14" strokeWidth="1.5">
         <ellipse cx="170" cy="115" rx="48" ry="108" />
         <path d="M62 115h216 M78 62h184 M78 168h184" />
       </g>
       <g transform="rotate(-12 120 112)">
-        <rect x="70" y="40" width="112" height="146" rx="12" fill="#eef3ff" />
-        <rect x="78" y="48" width="96" height="130" rx="8" fill="#ffffff" />
-        <g fill="none" stroke="#155dfc" strokeWidth="4">
+        <rect x="70" y="40" width="112" height="146" rx="12" className="fill-surface" />
+        <rect x="78" y="48" width="96" height="130" rx="8" className="fill-white" />
+        <g fill="none" className="stroke-action" strokeWidth="4">
           <circle cx="126" cy="94" r="22" />
           <ellipse cx="126" cy="94" rx="9" ry="22" />
           <path d="M105 88h42 M105 100h42" />
         </g>
-        <rect x="96" y="134" width="60" height="7" rx="3.5" fill="#162556" />
-        <rect x="96" y="148" width="42" height="7" rx="3.5" fill="#162556" fillOpacity="0.35" />
+        <rect x="96" y="134" width="60" height="7" rx="3.5" className="fill-masthead" />
+        <rect x="96" y="148" width="42" height="7" rx="3.5" className="fill-masthead" fillOpacity="0.35" />
       </g>
       <g transform="rotate(8 230 150)">
-        <rect x="168" y="118" width="128" height="64" rx="8" fill="#ffffff" />
+        <rect x="168" y="118" width="128" height="64" rx="8" className="fill-white" />
         <path
           d="M186 140l22-9-8 22-4-9-10-4Z"
           fill="none"
-          stroke="#155dfc"
+          className="stroke-action"
           strokeWidth="3"
           strokeLinejoin="round"
         />
-        <rect x="218" y="134" width="60" height="7" rx="3.5" fill="#162556" />
-        <rect x="218" y="148" width="44" height="6" rx="3" fill="#53627a" fillOpacity="0.5" />
-        <rect x="184" y="166" width="96" height="2" rx="1" fill="#d7deeb" />
+        <rect x="218" y="134" width="60" height="7" rx="3.5" className="fill-masthead" />
+        <rect x="218" y="148" width="44" height="6" rx="3" className="fill-muted" fillOpacity="0.5" />
+        <rect x="184" y="166" width="96" height="2" rx="1" className="fill-line" />
       </g>
-      <rect x="160" y="104" width="6" height="88" rx="3" fill="#f6c84a" transform="rotate(14 163 148)" />
+      <rect
+        x="160"
+        y="104"
+        width="6"
+        height="88"
+        rx="3"
+        className="fill-accent"
+        transform="rotate(14 163 148)"
+      />
       <path
         d="M40 186c40 20 90 14 130-8s80-70 110-110"
         fill="none"
-        stroke="#f6c84a"
+        className="stroke-accent"
         strokeWidth="2.5"
         strokeDasharray="5 8"
         strokeLinecap="round"
       />
-      <circle cx="270" cy="44" r="22" fill="#f6c84a" />
-      <path d="M260 44l7 7 13-14" fill="none" stroke="#162556" strokeWidth="3.5" strokeLinecap="round" />
+      <circle cx="270" cy="44" r="22" className="fill-accent" />
+      <path
+        d="M260 44l7 7 13-14"
+        fill="none"
+        className="stroke-masthead"
+        strokeWidth="3.5"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }

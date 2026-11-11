@@ -7,9 +7,9 @@ export default function Home() {
   return (
     <main id="main" className="flex-1">
       <section className="wrap pt-6 md:pt-8">
-        <div className="grid items-center gap-6 overflow-hidden rounded-2xl bg-[linear-gradient(120deg,var(--color-masthead-2)_0%,var(--color-masthead)_70%)] px-6 py-8 text-white md:grid-cols-[1fr_auto] md:px-10 md:py-10">
+        <div className="on-dark grid items-center gap-6 overflow-hidden rounded-2xl bg-[linear-gradient(120deg,var(--color-masthead-2)_0%,var(--color-masthead)_70%)] px-6 py-8 text-white md:grid-cols-[1fr_auto] md:px-10 md:py-10">
           <div>
-            <p className="flex items-center gap-3 text-xs font-bold tracking-[0.18em] uppercase">
+            <p className="eyebrow flex items-center gap-3 text-white">
               <span className="h-5 w-1 rounded bg-accent" aria-hidden="true" />
               Information for every OFW
             </p>
@@ -22,7 +22,7 @@ export default function Home() {
               Filipino or Taglish.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
-              <a href="#services" className="btn-primary">
+              <a href="#services" className="btn-primary pe-[18px]">
                 Explore services
                 <Icon name="arrow" className="size-5" />
               </a>
@@ -41,10 +41,7 @@ export default function Home() {
         <ul className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {JOURNEYS.map((j) => (
             <li key={j.href}>
-              <Link
-                href={j.href}
-                className="group flex h-full gap-3.5 rounded-xl border border-line bg-white p-5 transition-colors hover:border-action"
-              >
+              <Link href={j.href} className="group card flex h-full gap-3.5 p-5 hover:shadow-card-hover">
                 <Icon name={j.icon} className="mt-0.5 size-6 shrink-0 text-action" />
                 <span>
                   <span className="block text-lg font-bold text-ink group-hover:text-action">{j.title}</span>
@@ -62,7 +59,7 @@ export default function Home() {
         </h2>
         <ul className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {QUICK_SERVICES.map((s) => (
-            <li key={s.title} className="flex flex-col rounded-xl border border-line bg-white p-5">
+            <li key={s.title} className="card flex flex-col p-5">
               <div className="flex items-center gap-3.5">
                 <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-surface text-action">
                   <Icon name={s.icon} className="size-5" />
@@ -100,7 +97,7 @@ export default function Home() {
             className="mt-1 inline-flex min-h-11 items-center gap-1.5 text-sm text-action hover:underline"
           >
             View announcements at dmw.gov.ph
-            <Icon name="external" className="size-4" />
+            <Icon name="external" weight="regular" className="size-4" />
             <NewTab />
           </a>
         </div>

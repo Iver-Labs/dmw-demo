@@ -8,8 +8,8 @@ import { NAV } from "@/lib/site";
 export function SectionNav() {
   const pathname = usePathname();
   return (
-    <nav aria-label="Main" className="border-b border-line bg-[#e9edf4]">
-      <ul className="wrap flex gap-1 overflow-x-auto">
+    <nav aria-label="Main" className="border-b border-line bg-wash">
+      <ul className="wrap flex gap-1 overflow-x-auto overscroll-x-contain">
         {NAV.map((n) => {
           const current = n.href === "/" ? pathname === "/" : pathname.startsWith(n.href);
           return (
@@ -17,7 +17,7 @@ export function SectionNav() {
               <Link
                 href={n.href}
                 aria-current={current ? "page" : undefined}
-                className="flex min-h-12 items-center border-b-2 border-transparent px-3 text-[15px] whitespace-nowrap text-muted hover:text-ink aria-[current=page]:border-action aria-[current=page]:font-semibold aria-[current=page]:text-ink"
+                className="flex min-h-12 items-center border-b-2 border-transparent px-3 whitespace-nowrap text-muted hover:text-ink aria-[current=page]:border-action aria-[current=page]:font-semibold aria-[current=page]:text-ink"
               >
                 {n.label}
               </Link>

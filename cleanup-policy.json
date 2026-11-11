@@ -1,4 +1,4 @@
 [
-  { "name": "keep-recent", "action": { "type": "Keep" }, "mostRecentVersions": { "keepCount": 10 } },
-  { "name": "delete-old", "action": { "type": "Delete" }, "condition": { "olderThan": "30d" } }
+  { "name": "keep-recent", "action": { "type": "Keep" }, "mostRecentVersions": { "keepCount": 2 } },
+  { "name": "delete-old", "action": { "type": "Delete" }, "condition": { "olderThan": "1d" } }
 ]

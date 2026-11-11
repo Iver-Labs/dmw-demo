@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Atkinson_Hyperlegible_Next } from "next/font/google";
 import { ChatWidget } from "@/components/chat/ChatWidget";
 import { SectionNav } from "@/components/site/SectionNav";
 import {
@@ -12,6 +13,17 @@ import {
 import { SITE_NAME } from "@/lib/site";
 import "./globals.css";
 
+// Built for legibility: I/l/1 and 0/O stay distinct, which matters when reading OEC and reference
+// numbers. Downloaded at build time and self-hosted; the browser never calls Google.
+const atkinson = Atkinson_Hyperlegible_Next({
+  subsets: ["latin", "latin-ext"],
+  display: "swap",
+  variable: "--font-atkinson",
+  // next/font has no metric overrides for this family, so name the swap fallback explicitly.
+  adjustFontFallback: false,
+  fallback: ["system-ui", "Arial", "sans-serif"],
+});
+
 export const metadata: Metadata = {
   title: { default: SITE_NAME, template: `%s · ${SITE_NAME}` },
   description: "Unofficial portfolio demo of DMW information pages with a cited SEA-LION chatbot.",
@@ -20,14 +32,14 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#162556",
+  themeColor: "#102252",
   // Mobile keyboards resize the page, so the assistant's composer stays above the keyboard.
   interactiveWidget: "resizes-content",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className="h-full antialiased">
+    <html lang="en" className={`${atkinson.variable} h-full font-sans antialiased`}>
       <body className="flex min-h-full flex-col">
         <SkipLink />
         <UnofficialBanner />

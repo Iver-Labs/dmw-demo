@@ -1,36 +1,60 @@
 @import "tailwindcss";
 
 /*
- * Design 01 / Classic DMW Portal (DMW-Website-Designs.pdf, "21 Shared Components").
- * DMW-inspired palette; no official seal, logo or wordmark.
+ * Design 01 / Classic DMW Portal (DMW-Website-Designs.pdf, "21 Shared Components"), refined:
+ * OKLCH role tokens, Atkinson Hyperlegible Next, shadow cards. DMW-inspired palette; no official
+ * seal, logo or wordmark. Contrast ratios are against white unless noted.
  */
 @theme {
-  --color-masthead: #162556;
-  --color-masthead-2: #22397f;
-  --color-action: #155dfc;
-  --color-action-hover: #0e4bd6;
-  --color-ink: #17243c;
-  --color-muted: #53627a;
-  --color-surface: #eef3ff;
-  --color-accent: #f6c84a;
-  --color-line: #d7deeb;
-  --color-wash: #f4f6fa;
-  --font-sans: Arial, "Helvetica Neue", Helvetica, system-ui, sans-serif;
+  --color-masthead: oklch(0.27 0.09 265); /* navy; white text 15.3:1 */
+  --color-masthead-2: oklch(0.35 0.12 264); /* hero gradient start; white 11.6:1 */
+  --color-action: oklch(0.49 0.2 263); /* links, primary buttons; 6.6:1, 5.8:1 on surface */
+  --color-action-hover: oklch(0.43 0.19 264); /* 8.5:1 */
+  --color-ink: oklch(0.25 0.04 260); /* body text; 16:1 */
+  --color-muted: oklch(0.47 0.04 258); /* secondary text; 6.8:1, 6.1:1 on surface */
+  --color-surface: oklch(0.96 0.02 262); /* blue tint */
+  --color-wash: oklch(0.97 0.006 260); /* neutral tint */
+  --color-line: oklch(0.89 0.02 260); /* structure only: dividers, inputs, tables */
+  --color-accent: oklch(0.85 0.14 85); /* gold highlight; 9.6:1 on masthead */
+  --color-notice: oklch(0.93 0.08 88); /* unofficial banner */
+  --color-notice-ink: oklch(0.33 0.07 70); /* 10:1 on notice */
+
+  --text-caption: 0.8125rem;
+  --text-caption--line-height: 1.4;
+
+  /* Elevation (better-ui shadow recipe). Pair with a transparent border for forced-colors mode. */
+  --shadow-card:
+    0 0 0 1px oklch(0 0 0 / 0.06), 0 1px 2px -1px oklch(0 0 0 / 0.06), 0 2px 4px 0 oklch(0 0 0 / 0.04);
+  --shadow-card-hover:
+    0 0 0 1px oklch(0 0 0 / 0.08), 0 1px 2px -1px oklch(0 0 0 / 0.08), 0 2px 4px 0 oklch(0 0 0 / 0.06);
+  --shadow-overlay: 0 0 0 1px oklch(0 0 0 / 0.06), 0 18px 50px oklch(0.27 0.09 265 / 0.28);
+  --shadow-launcher: 0 10px 28px oklch(0.49 0.2 263 / 0.35);
+}
+
+/* Self-hosted by next/font in app/layout.tsx. */
+@theme inline {
+  --font-sans: var(--font-atkinson), system-ui, sans-serif;
 }
 
 body {
   background: #ffffff;
   color: var(--color-ink);
-  font-family: var(--font-sans);
   font-size: 16px;
   line-height: 1.5;
 }
 
-/* Keyboard focus: 2 px action-blue ring (design: "Keyboard focus"). In the base layer so a
-   component can swap it for its own ring (the assistant composer does). */
+/* Keyboard focus: 2 px ring, action blue on light surfaces and white inside .on-dark (the blue
+   ring is 2.8:1 on navy). In the base layer so a component can swap it for its own ring (the
+   assistant composer does). */
 @layer base {
+  :root {
+    --focus-ring: var(--color-action);
+  }
+  .on-dark {
+    --focus-ring: #ffffff;
+  }
   :focus-visible {
-    outline: 2px solid var(--color-action);
+    outline: 2px solid var(--focus-ring);
     outline-offset: 2px;
   }
 }
@@ -48,16 +72,65 @@ body {
 
 @layer components {
   .btn-primary {
-    @apply inline-flex min-h-12 items-center justify-center gap-2.5 rounded-lg bg-action px-5 font-semibold text-white transition-colors hover:bg-action-hover;
+    @apply inline-flex min-h-12 items-center justify-center gap-2.5 rounded-lg bg-action px-5 font-semibold text-white hover:bg-action-hover;
   }
   .btn-secondary {
-    @apply inline-flex min-h-12 items-center justify-center gap-2.5 rounded-lg border border-line bg-white px-5 font-semibold text-action transition-colors hover:border-action;
+    @apply inline-flex min-h-12 items-center justify-center gap-2.5 rounded-lg border border-line bg-white px-5 font-semibold text-action hover:border-action;
   }
   .btn-on-dark {
-    @apply inline-flex min-h-12 items-center justify-center gap-2.5 rounded-lg border border-white/40 px-5 font-semibold text-white transition-colors hover:bg-white/10;
+    @apply inline-flex min-h-12 items-center justify-center gap-2.5 rounded-lg border border-white/40 px-5 font-semibold text-white hover:bg-white/10;
   }
+
+  /* Press feedback for every button-like control; .press opts in controls without a btn-* class. */
+  .btn-primary,
+  .btn-secondary,
+  .btn-on-dark,
+  .press {
+    transition-property: color, background-color, border-color, box-shadow, opacity, scale;
+    transition-duration: 150ms;
+    transition-timing-function: ease-out;
+    -webkit-tap-highlight-color: transparent;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    :is(.btn-primary, .btn-secondary, .btn-on-dark, .press):not(:disabled):active {
+      scale: 0.96;
+    }
+  }
+
+  /* Raised card: shadow for elevation, transparent border so forced-colors mode still draws it. */
+  .card {
+    @apply rounded-xl border border-transparent bg-white shadow-card transition-[box-shadow,background-color] duration-150 ease-out;
+  }
+
   .eyebrow {
-    @apply text-xs font-bold tracking-[0.16em] text-action uppercase;
+    @apply text-xs font-bold tracking-[0.14em] text-action uppercase;
+  }
+
+  /* One-shot entrances (chat panel, new answer, backdrop). Opacity always; rise and blur only when
+     motion is allowed. @starting-style fires on insertion, so existing content never re-animates. */
+  .fade-in,
+  .rise-in {
+    transition: opacity 300ms ease-out;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .rise-in {
+      transition-property: opacity, translate, filter;
+    }
+  }
+}
+
+@starting-style {
+  .fade-in,
+  .rise-in {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  @starting-style {
+    .rise-in {
+      translate: 0 12px;
+      filter: blur(4px);
+    }
   }
 }
 

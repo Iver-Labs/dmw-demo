@@ -30,7 +30,7 @@ export function SectionPage({ section, title, intro }: { section: Section; title
             </p>
           ) : (
             docs.map((doc) => (
-              <article key={doc.slug} className="rounded-xl border border-line bg-white p-5 md:p-7">
+              <article key={doc.slug} className="card p-5 md:p-7">
                 <h2 className="mb-3 text-xl font-bold text-ink md:text-2xl">{doc.title}</h2>
                 <Markdown>{doc.body}</Markdown>
                 <p className="mt-6 border-t border-line pt-3 text-xs text-muted">
@@ -59,7 +59,7 @@ export function SectionPage({ section, title, intro }: { section: Section; title
             </p>
             <AskAssistantButton className="btn-primary mt-4 w-full" />
           </div>
-          <div className="rounded-xl border border-line p-5">
+          <div className="card p-5">
             <p className="font-bold text-ink">Ready to transact?</p>
             <p className="mt-1 text-sm text-muted">
               Applications and appointments happen on official DMW portals.

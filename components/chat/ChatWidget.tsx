@@ -187,14 +187,14 @@ export function ChatWidget() {
         hidden={open}
         onClick={openPanel}
         aria-haspopup="dialog"
-        className="fixed right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-40 inline-flex min-h-13 items-center gap-2.5 rounded-full bg-action px-6 text-[17px] font-bold text-white shadow-[0_10px_28px_rgba(21,93,252,0.35)] transition-colors hover:bg-action-hover sm:right-6 sm:bottom-6"
+        className="press fixed right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-40 inline-flex min-h-13 items-center gap-2.5 rounded-full bg-action ps-[22px] pe-6 text-lg font-bold text-white shadow-launcher hover:bg-action-hover sm:right-6 sm:bottom-6"
       >
-        <Icon name="chat" className="size-6" />
+        <Icon name="chat" weight="bold" className="size-6" />
         {t.launcher}
       </button>
 
       {open && isMobile && (
-        <div className="fixed inset-0 z-40 bg-ink/45" aria-hidden="true" onClick={closePanel} />
+        <div className="fade-in fixed inset-0 z-40 bg-ink/45" aria-hidden="true" onClick={closePanel} />
       )}
 
       {open && (
@@ -203,9 +203,9 @@ export function ChatWidget() {
           aria-modal={isMobile || undefined}
           aria-labelledby={titleId}
           ref={panelRef}
-          className="fixed inset-x-2 top-[max(0.5rem,env(safe-area-inset-top))] bottom-[max(0.5rem,env(safe-area-inset-bottom))] z-50 flex flex-col overflow-hidden rounded-2xl border border-line bg-white shadow-[0_18px_50px_rgba(22,37,86,0.28)] md:inset-x-auto md:top-auto md:right-6 md:bottom-6 md:h-[min(46rem,calc(100dvh-3rem))] md:w-[25.5rem]"
+          className="rise-in fixed inset-x-2 top-[max(0.5rem,env(safe-area-inset-top))] bottom-[max(0.5rem,env(safe-area-inset-bottom))] z-50 flex flex-col overflow-hidden rounded-2xl border border-transparent bg-white shadow-overlay md:inset-x-auto md:top-auto md:right-6 md:bottom-6 md:h-[min(46rem,calc(100dvh-3rem))] md:w-[25.5rem]"
         >
-          <header className="flex items-start gap-3 bg-masthead px-5 py-4 text-white">
+          <header className="on-dark flex items-start gap-3 bg-masthead px-5 py-4 text-white">
             <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-white/12">
               <Icon name="chat" className="size-6" />
             </span>
@@ -219,7 +219,7 @@ export function ChatWidget() {
               type="button"
               onClick={closePanel}
               aria-label={t.close}
-              className="-mt-1 -mr-2 grid size-11 shrink-0 place-items-center rounded-lg hover:bg-white/10"
+              className="press -mt-1 -mr-2 grid size-11 shrink-0 place-items-center rounded-lg hover:bg-white/10"
             >
               <Icon name="close" className="size-6" />
             </button>
@@ -230,7 +230,7 @@ export function ChatWidget() {
           </p>
 
           <div className="flex items-center justify-between px-5 pt-1">
-            <span className="text-xs font-bold tracking-wide text-action uppercase">{t.langName}</span>
+            <span className="eyebrow">{t.langName}</span>
             <button
               type="button"
               onClick={() => setLang((l) => (l === "en" ? "fil" : "en"))}
@@ -244,7 +244,7 @@ export function ChatWidget() {
           <div ref={logRef} className="flex-1 space-y-4 overflow-y-auto overscroll-contain px-5 pb-4">
             {empty && (
               <>
-                <p className="text-[15px] text-muted">{t.intro}</p>
+                <p className="text-muted">{t.intro}</p>
                 <SuggestedQuestions
                   onPick={(q) => {
                     // The chip unmounts once the conversation starts; keep focus in the panel.
@@ -261,11 +261,21 @@ export function ChatWidget() {
               m.role === "user" ? (
                 <UserBubble key={i} text={m.content} />
               ) : m.fallback ? (
-                <NoSourceCard key={i} message={m} t={t} />
+                <NoSourceCard key={i} message={m} t={t} enter={i === messages.length - 1} />
               ) : (
                 <div key={i}>
-                  <p className="leading-relaxed whitespace-pre-wrap text-ink">{m.content}</p>
-                  <SourceCards sources={m.sources ?? []} label={t.sources} newTab={t.newTab} />
+                  {/* Only the newest answer enters (reopening the panel replays it with the panel). */}
+                  <p
+                    className={`leading-relaxed whitespace-pre-wrap text-ink ${i === messages.length - 1 ? "rise-in" : ""}`}
+                  >
+                    {m.content}
+                  </p>
+                  <SourceCards
+                    sources={m.sources ?? []}
+                    label={t.sources}
+                    newTab={t.newTab}
+                    className={i === messages.length - 1 ? "rise-in delay-100" : ""}
+                  />
                 </div>
               ),
             )}
@@ -306,7 +316,7 @@ export function ChatWidget() {
               send(input);
             }}
           >
-            <div className="flex items-center rounded-xl border border-line pl-4 focus-within:border-action focus-within:ring-2 focus-within:ring-action/20">
+            <div className="flex items-center rounded-[13px] border border-line pl-4 focus-within:border-action focus-within:ring-2 focus-within:ring-action/20">
               <input
                 ref={inputRef}
                 value={input}
@@ -322,12 +332,12 @@ export function ChatWidget() {
                 type="submit"
                 disabled={Boolean(pending) || !input.trim()}
                 aria-label={t.send}
-                className="m-1 grid size-11 shrink-0 place-items-center rounded-lg bg-action text-white transition-colors hover:bg-action-hover disabled:opacity-40"
+                className="press m-1 grid size-11 shrink-0 place-items-center rounded-lg bg-action text-white hover:bg-action-hover disabled:opacity-40"
               >
                 <Icon name="arrow" className="size-5" />
               </button>
             </div>
-            <p className="mt-2 text-center text-[11px] text-muted">{t.footnote}</p>
+            <p className="mt-2 text-center text-xs text-muted">{t.footnote}</p>
           </form>
 
           {/* Announce state changes once to screen readers. */}
@@ -344,18 +354,26 @@ function UserBubble({ text }: { text: string }) {
   return <p className="ml-8 rounded-xl bg-surface px-4 py-3 whitespace-pre-wrap text-ink">{text}</p>;
 }
 
-function StateCard({ eyebrow, children }: { eyebrow: string; children: React.ReactNode }) {
+function StateCard({
+  eyebrow,
+  enter = false,
+  children,
+}: {
+  eyebrow: string;
+  enter?: boolean;
+  children: React.ReactNode;
+}) {
   return (
-    <div className="rounded-xl border border-line p-4">
-      <p className="mb-2 text-[11px] font-bold tracking-[0.14em] text-action uppercase">{eyebrow}</p>
+    <div className={`card p-4 ${enter ? "rise-in" : ""}`}>
+      <p className="eyebrow mb-2">{eyebrow}</p>
       {children}
     </div>
   );
 }
 
-function NoSourceCard({ message, t }: { message: Message; t: Labels }) {
+function NoSourceCard({ message, t, enter }: { message: Message; t: Labels; enter: boolean }) {
   return (
-    <StateCard eyebrow={t.noSourceEyebrow}>
+    <StateCard eyebrow={t.noSourceEyebrow} enter={enter}>
       <p className="font-bold text-ink">{t.noSourceTitle}</p>
       <p className="mt-1 text-sm whitespace-pre-wrap text-muted">{message.content}</p>
       <p className="mt-1 text-sm text-muted">{t.noSourceBody}</p>
@@ -364,7 +382,7 @@ function NoSourceCard({ message, t }: { message: Message; t: Labels }) {
         href={OFFICIAL_PORTAL}
         target="_blank"
         rel="noopener noreferrer"
-        className="btn-secondary mt-3 min-h-11 text-sm"
+        className="btn-secondary mt-3 min-h-11 pe-[18px] text-sm"
       >
         {t.helpdesk}
         <Icon name="arrow" className="size-4" />
@@ -384,7 +402,7 @@ function FailureCard({ failure, t, onRetry }: { failure: Failure; t: Labels; onR
     <StateCard eyebrow={copy.eyebrow}>
       <p className="font-bold text-ink">{copy.title}</p>
       {copy.body && <p className="mt-1 text-sm text-muted">{copy.body}</p>}
-      <button type="button" onClick={onRetry} className="btn-primary mt-3 min-h-11 text-sm">
+      <button type="button" onClick={onRetry} className="btn-primary mt-3 min-h-11 pe-[18px] text-sm">
         {t.retry}
         <Icon name="arrow" className="size-4" />
       </button>

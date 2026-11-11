@@ -18,6 +18,7 @@
     "eval": "node scripts/fetch-model.mjs && node --env-file-if-exists=.env.local --import tsx scripts/eval.ts",
     "verify": "npm run typecheck && npm run lint && npm run test && npm run format:check",
     "model:fetch": "node scripts/fetch-model.mjs",
+    "deploy": "bash scripts/deploy.sh",
     "predev": "node scripts/fetch-model.mjs"
   },
   "dependencies": {
