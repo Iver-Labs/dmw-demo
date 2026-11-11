@@ -1,7 +1,7 @@
 export const SECTIONS = ["faq", "oec-bm", "guides", "directory", "contact"] as const;
 export type Section = (typeof SECTIONS)[number];
 
-/** One curated page from content/kb/<slug>.md. */
+/** One curated page from content/kb/<slug>.md (rendered by the site pages; not used by the chatbot). */
 export interface KbDoc {
   slug: string;
   title: string;
@@ -14,13 +14,17 @@ export interface KbDoc {
   chunkOverlap?: number;
 }
 
-/** A retrievable piece of a KbDoc. `text` already carries its "title > heading" header. */
+/**
+ * One chunk from the notebook handoff (content/handoff/chunks.jsonl), embedded as-is:
+ * the notebook's FINAL index (PEOS clean 800/200, one DMW record per chunk).
+ */
 export interface Chunk {
   id: string;
+  source: "PEOS" | "DMW";
+  page: number;
+  record_no: number | null;
+  agency: string | null;
   text: string;
-  title: string;
-  url: string;
-  section: Section;
 }
 
 /** Shape of each entry in data/index.json. */
@@ -43,17 +47,21 @@ export interface IndexMeta {
   builtAt: string;
 }
 
-export interface ScoredChunk extends LoadedChunk {
-  /** Raw cosine similarity; the retrieval gate uses this. */
+/** One retrieved chunk with the fields the notebook's retrieve() records. */
+export interface RetrievedChunk extends LoadedChunk {
+  rank: number;
+  vector_sim: number | null;
+  vector_rank: number | null;
+  bm25_rank: number | null;
+  /** Merged RRF score (hybrid) or vector similarity (vector mode). */
   score: number;
-  /** Score plus the acronym boost; ranking uses this. */
-  rankScore: number;
 }
 
 export interface Source {
   n: number;
   title: string;
-  url: string;
+  /** Absent for the notebook's passages (the chunks carry no URL), present for the fallback link. */
+  url?: string;
 }
 
 export interface ChatTurn {

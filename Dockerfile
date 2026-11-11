@@ -20,7 +20,7 @@ COPY . .
 # The index is built ahead of time by `npm run ingest` and committed.
 # Fail fast if it's missing instead of shipping a bot with no knowledge.
 RUN test -s data/index.json && test -s data/index.meta.json
-# Local embedding model (all-MiniLM-L6-v2): pinned revision, every file SHA-256 verified.
+# Local embedding model (multilingual-e5-small, fp32 like the notebook): pinned revision, every file SHA-256 verified.
 RUN node scripts/fetch-model.mjs
 RUN npm run build
 

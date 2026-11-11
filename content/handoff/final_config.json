@@ -1,0 +1,56 @@
+{
+  "generated_at": "2026-11-11 10:18:00",
+  "source_notebook": "DaBig3_RAG_Final_Notebook.ipynb",
+  "chosen_from_run": "R6",
+  "embedding": {
+    "key": "e5-small",
+    "python_model": "intfloat/multilingual-e5-small",
+    "transformersjs_model": "Xenova/multilingual-e5-small",
+    "query_prefix": "query: ",
+    "doc_prefix": "passage: ",
+    "normalize": true,
+    "similarity": "cosine",
+    "dims": 384
+  },
+  "chunking": {
+    "peos_cleaning": true,
+    "peos_chunk_size": 800,
+    "peos_chunk_overlap": 200,
+    "dmw_chunking": "record",
+    "total_chunks": 3849
+  },
+  "retrieval": {
+    "mode": "hybrid",
+    "top_k": 3,
+    "candidates_per_search": 20,
+    "rrf_k": 60,
+    "vector_weight": 1.0,
+    "bm25_weight": 1.0,
+    "bm25": "rank_bm25 BM25Okapi defaults (k1=1.5, b=0.75); tokens = lowercase NFKC text split on regex \\w+",
+    "score_threshold": null
+  },
+  "generation": {
+    "provider": "SEA-LION API (OpenAI-compatible)",
+    "base_url": "https://api.sea-lion.ai/v1",
+    "model": "aisingapore/Llama-SEA-LION-v3-70B-IT",
+    "temperature": 0.0,
+    "max_tokens": 400,
+    "fallback_token": "FALLBACK",
+    "fallback_message": "I can't find that in my documents (the PEOS module and the DMW list of licensed agencies). / Paumanhin, wala ito sa mga dokumentong hawak ko.",
+    "require_citation": false
+  },
+  "final_results": {
+    "n_versions": 33,
+    "precision_at_k": 0.395,
+    "recall_at_k": 0.944,
+    "mrr_at_k": 0.901,
+    "recall_EN": 1.0,
+    "recall_TL": 0.833,
+    "recall_TGL": 1.0,
+    "recall_PEOS": 0.9,
+    "recall_DMW": 1.0,
+    "fallback_on_answerable": 1,
+    "fallback_on_unanswerable": 3,
+    "avg_total_s": 0.415
+  }
+}

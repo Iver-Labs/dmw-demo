@@ -4,3 +4,6 @@ data/index.json
 package-lock.json
 eval/results
 content/kb
+# vendored third-party skills (kept byte-identical to upstream)
+.claude/skills
+content/handoff

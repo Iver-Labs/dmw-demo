@@ -26,18 +26,18 @@ spec:
           resources:
             limits:
               cpu: "1"
-              memory: 512Mi
+              memory: 2Gi # fp32 e5-small (notebook precision) peaks ~1.35 GB RSS; 1Gi would OOM
           env:
             - name: SEALION_MODEL
               value: aisingapore/Llama-SEA-LION-v3-70B-IT
             - name: SEALION_THINKING_OFF
-              value: "true"
+              value: "false"
             - name: EMBED_MODEL
-              value: Xenova/all-MiniLM-L6-v2
+              value: Xenova/multilingual-e5-small
             - name: EMBED_DIMS
               value: "384"
             - name: RETRIEVAL_MIN_SCORE
-              value: "0.3"
+              value: "0"
             - name: SEALION_API_KEY
               valueFrom:
                 secretKeyRef: { name: sealion-api-key, key: "1" }

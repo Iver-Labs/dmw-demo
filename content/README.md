@@ -1,7 +1,10 @@
 # Knowledge base
 
-One file per curated DMW page in `content/kb/<slug>.md`. The same Markdown renders the cloned
-pages **and** feeds the chatbot index, so the site and the bot can't disagree.
+One file per curated DMW page in `content/kb/<slug>.md`. The Markdown renders the cloned pages.
+
+The chatbot does **not** read these files: its knowledge is the group notebook's handoff in
+`content/handoff/` (3,849 chunks from the PEOS module and the DMW list of licensed agencies), embedded
+as-is by `npm run ingest`. The chunking notes below apply to the old site chunker only.
 
 ```markdown
 ---
@@ -32,5 +35,5 @@ chunk is prefixed with `title > heading`). Starting points from the group notebo
 | `directory` | office: name, region, address, phone, email      |
 | `contact`   | hotline group (include the word "hotline")       |
 
-After any change here run `npm run ingest` and commit the content, `data/index.json` and
-`data/index.meta.json` together; `npm run check:index` (and Cloud Build) fails otherwise.
+After a new notebook handoff replaces `content/handoff/`, run `npm run ingest` and commit it with
+`data/index.json` and `data/index.meta.json`; `npm run check:index` (and Cloud Build) fails otherwise.

@@ -4,7 +4,7 @@ import { parseEnv } from "@/lib/env";
 const valid = {
   SEALION_API_KEY: "sk-secret-value",
   SEALION_MODEL: "aisingapore/Llama-SEA-LION-v3.5-70B-R",
-  EMBED_MODEL: "Xenova/all-MiniLM-L6-v2",
+  EMBED_MODEL: "Xenova/multilingual-e5-small",
   EMBED_DIMS: "384",
 };
 
@@ -15,7 +15,7 @@ describe("parseEnv", () => {
     if (!r.ok) return;
     expect(r.env.EMBED_DIMS).toBe(384);
     expect(r.env.RETRIEVAL_TOP_K).toBe(3);
-    expect(r.env.RETRIEVAL_MIN_SCORE).toBe(0.3);
+    expect(r.env.RETRIEVAL_MIN_SCORE).toBe(0);
     expect(r.env.SEALION_THINKING_OFF).toBe(false);
     expect(r.env.SEALION_BASE_URL).toBe("https://api.sea-lion.ai/v1");
   });

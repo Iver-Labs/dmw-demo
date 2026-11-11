@@ -2,18 +2,25 @@ import path from "node:path";
 import { normalize } from "./search";
 
 /**
- * Local sentence embeddings with Transformers.js: all-MiniLM-L6-v2, the group notebook's
- * EMBEDDING_MODEL (384 dims, mean pooling, normalized). No API key and no network call: the
- * weights are fetched and checksum-verified into models/ by `npm run model:fetch` (also run in
- * the Docker build), and runtime downloads are disabled.
+ * Local sentence embeddings with Transformers.js: multilingual-e5-small (384 dims, mean pooling,
+ * normalized). No API key and no network call: the weights are fetched and checksum-verified into
+ * models/ by `npm run model:fetch` (also run in the Docker build), and runtime downloads are disabled.
  *
- * Known limit (measured in the notebook and again here): MiniLM is English-only, so Filipino and
- * Taglish questions score lower against English passages. RETRIEVAL_MIN_SCORE is tuned for it,
- * and the glossary expansion adds English terms to Filipino questions.
+ * e5 is multilingual (XLM-R tokenizer; Tagalog is in its training data), replacing the English-only
+ * all-MiniLM-L6-v2 that scored Filipino questions low. It expects "query: " / "passage: " prefixes;
+ * leaving them out costs retrieval quality. Inputs are truncated at 512 tokens.
  */
 
-/** Kept for call sites; MiniLM encodes queries and documents the same way. */
 export type TaskType = "RETRIEVAL_QUERY" | "RETRIEVAL_DOCUMENT";
+
+/** Per-model input prefixes; models not listed (e.g. MiniLM) encode text as-is. */
+const PREFIXES: Record<string, Record<TaskType, string>> = {
+  "Xenova/multilingual-e5-small": { RETRIEVAL_QUERY: "query: ", RETRIEVAL_DOCUMENT: "passage: " },
+};
+
+export function withPrefix(text: string, taskType: TaskType, model: string): string {
+  return (PREFIXES[model]?.[taskType] ?? "") + text;
+}
 
 export interface EmbedConfig {
   model: string;
@@ -53,7 +60,8 @@ function getExtractor({ model, modelDir }: EmbedConfig): Promise<Extractor> {
       env.allowLocalModels = true;
       env.localModelPath = dir + path.sep;
       env.useFSCache = false; // the container filesystem is read-only
-      const pipe = await pipeline("feature-extraction", model, { dtype: "q8", device: "cpu" });
+      // fp32 = onnx/model.onnx, the notebook's precision (sentence-transformers on PyTorch).
+      const pipe = await pipeline("feature-extraction", model, { dtype: "fp32", device: "cpu" });
       return pipe as unknown as Extractor;
     })().catch((err) => {
       loaded.delete(key);
@@ -69,15 +77,16 @@ function getExtractor({ model, modelDir }: EmbedConfig): Promise<Extractor> {
 /** Embed texts locally; vectors come back unit-length with `dims` values each. */
 export async function embedBatch(
   texts: string[],
-  _taskType: TaskType,
+  taskType: TaskType,
   cfg: EmbedConfig,
 ): Promise<Float32Array[]> {
   if (texts.length === 0) return [];
   const extractor = await getExtractor(cfg);
+  const inputs = texts.map((t) => withPrefix(t, taskType, cfg.model));
   const vectors: Float32Array[] = [];
-  for (let i = 0; i < texts.length; i += MAX_BATCH) {
+  for (let i = 0; i < inputs.length; i += MAX_BATCH) {
     const output = (
-      await extractor(texts.slice(i, i + MAX_BATCH), { pooling: "mean", normalize: true })
+      await extractor(inputs.slice(i, i + MAX_BATCH), { pooling: "mean", normalize: true })
     ).tolist();
     for (const v of output as number[][]) {
       if (v.length !== cfg.dims) throw new EmbedError(`expected ${cfg.dims} dims, got ${v.length}`);

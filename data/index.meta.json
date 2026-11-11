@@ -1,8 +1,8 @@
 {
-  "embedModel": "Xenova/all-MiniLM-L6-v2",
+  "embedModel": "Xenova/multilingual-e5-small",
   "dims": 384,
-  "chunks": 75,
-  "contentHash": "sha256:7746a2295eb745b36c35bac2558d85209c215da966bc9da7c6e4cbefebdbd54e",
-  "chunker": "heading-split-1500-overlap-200+per-file-v2",
-  "builtAt": "2026-11-10T11:47:29Z"
+  "chunks": 3849,
+  "contentHash": "sha256:79292232dbc25148275e11072851088cae37c35408bf72bd7f7e0339fd3cf058",
+  "chunker": "notebook-handoff FINAL (R6): PEOS clean 800/200 + DMW 1 record/chunk",
+  "builtAt": "2026-11-11T11:51:40Z"
 }

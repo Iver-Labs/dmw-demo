@@ -21,10 +21,10 @@ export const envSchema = z.object({
   SEALION_THINKING_OFF: bool.default(true),
   EMBED_MODEL: required("EMBED_MODEL"),
   EMBED_DIMS: z.coerce.number().int().positive(),
-  // 3 = the group notebook's best run (Run M); top-K 5 lowered its precision.
+  // 3 = top_k of the notebook's FINAL run (content/handoff/final_config.json).
   RETRIEVAL_TOP_K: z.coerce.number().int().min(1).max(20).default(3),
-  // Provisional for MiniLM (Taglish questions score ~0.3 against English passages); tune with npm run eval.
-  RETRIEVAL_MIN_SCORE: z.coerce.number().min(0).max(1).default(0.3),
+  // 0 = score gate off, as in the notebook's FINAL run (score_threshold: null).
+  RETRIEVAL_MIN_SCORE: z.coerce.number().min(0).max(1).default(0),
   LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
   CHAT_RATE_LIMIT_PER_MIN: z.coerce.number().int().positive().default(5),
   CHAT_MAX_INPUT_CHARS: z.coerce.number().int().positive().default(500),

@@ -1,24 +1,26 @@
 #!/usr/bin/env node
 // npm run model:fetch — download the local embedding model into models/ and verify every file.
 //
-// The model is sentence-transformers/all-MiniLM-L6-v2, the group notebook's EMBEDDING_MODEL, in the
-// ONNX export Transformers.js loads (Xenova/all-MiniLM-L6-v2, Apache-2.0). Files come from a pinned
-// Hugging Face commit and must match the SHA-256 below, so every build ships the same weights.
+// The model is intfloat/multilingual-e5-small (MIT; 384 dims; ~100 languages incl. Tagalog via
+// XLM-R's CC-100 data) in the ONNX export Transformers.js loads (Xenova/multilingual-e5-small, not
+// gated). Files come from a pinned Hugging Face commit and must match the SHA-256 below, so every
+// build ships the same weights.
 // The app never downloads models at runtime (lib/rag/embed.ts sets allowRemoteModels = false).
 // Node built-ins only: it runs in the Docker builder stage.
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
-const REPO = "Xenova/all-MiniLM-L6-v2";
-const REVISION = "751bff37182d3f1213fa05d7196b954e230abad9";
+const REPO = "Xenova/multilingual-e5-small";
+const REVISION = "761b726dd34fb83930e26aab4e9ac3899aa1fa78";
 const FILES = {
-  "config.json": "7135149f7cffa1a573466c6e4d8423ed73b62fd2332c575bf738a0d033f70df7",
-  "tokenizer.json": "da0e79933b9ed51798a3ae27893d3c5fa4a201126cef75586296df9b4d2c62a0",
-  "tokenizer_config.json": "9261e7d79b44c8195c1cada2b453e55b00aeb81e907a6664974b4d7776172ab3",
-  "special_tokens_map.json": "b6d346be366a7d1d48332dbc9fdf3bf8960b5d879522b7799ddba59e76237ee3",
-  // 8-bit quantized weights (23 MB; the full-precision file is 90 MB).
-  "onnx/model_quantized.onnx": "afdb6f1a0e45b715d0bb9b11772f032c399babd23bfc31fed1c170afc848bdb1",
+  "config.json": "cb99455288675345e1a4f411438d5d0adbba5fbd3a67ea4fb03c015433b996c1",
+  "tokenizer.json": "0b44a9d7b51c3c62626640cda0e2c2f70fdacdc25bbbd68038369d14ebdf4c39",
+  "tokenizer_config.json": "a1d6bc8734a6f635dc158508bef000f8e2e5a759c7d92f984b2c86e5ff53425b",
+  "special_tokens_map.json": "d05497f1da52c5e09554c0cd874037a083e1dc1b9cfd48034d1c717f1afc07a7",
+  // Full-precision (fp32) weights, 470 MB: the precision the group notebook ran the model at
+  // (sentence-transformers on PyTorch). The 8-bit file (118 MB) shifted similarities by up to 0.01.
+  "onnx/model.onnx": "4aa845c27760e06e9a686b9d8b5d440eae4b6612cd09e5b522b716d3941f77ff",
 };
 
 const dest = path.join(process.cwd(), "models", REPO);

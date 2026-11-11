@@ -1,5 +1,17 @@
 import matter from "gray-matter";
-import { SECTIONS, type Chunk, type KbDoc, type Section } from "./types";
+import { SECTIONS, type KbDoc, type Section } from "./types";
+
+/**
+ * A piece of a content/kb page. The chatbot no longer indexes these (it uses the notebook's chunks in
+ * content/handoff); parseKbDoc() below is what the site pages use.
+ */
+export interface KbChunk {
+  id: string;
+  text: string;
+  title: string;
+  url: string;
+  section: Section;
+}
 
 /** Recorded in index.meta.json; change it whenever chunking behaviour changes. */
 export const CHUNKER_ID = "heading-split-1500-overlap-200+per-file-v2";
@@ -105,8 +117,8 @@ export function windows(text: string, size = CHUNK_SIZE, overlap = CHUNK_OVERLAP
  * (one Q&A / office / hotline group), so each heading is one chunk; long OEC/BM guide
  * sections are windowed. Every chunk is prefixed with "title > heading".
  */
-export function chunkDoc(doc: KbDoc): Chunk[] {
-  const chunks: Chunk[] = [];
+export function chunkDoc(doc: KbDoc): KbChunk[] {
+  const chunks: KbChunk[] = [];
   for (const part of splitByHeadings(doc.body)) {
     const header = part.heading ? `${doc.title} > ${part.heading}` : doc.title;
     // Keep the FAQ question in the text, not only in the header.

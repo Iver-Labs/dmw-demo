@@ -1,4 +1,5 @@
-// Hash of everything under content/kb. Shared by ingest (writes it) and check-index (verifies it).
+// Hash of everything under content/handoff (the notebook's chunks the index is built from).
+// Shared by ingest (writes it) and check-index (verifies it).
 // Node built-ins only: Cloud Build runs check-index without `npm install`.
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
@@ -16,7 +17,7 @@ function listFiles(dir, base = dir) {
 
 /** sha256 over sorted relative paths and contents (CRLF normalised so Windows checkouts match). */
 export function contentHash(root = process.cwd()) {
-  const dir = path.join(root, "content", "kb");
+  const dir = path.join(root, "content", "handoff");
   const hash = createHash("sha256");
   for (const rel of listFiles(dir).sort()) {
     const text = readFileSync(path.join(dir, rel), "utf8").replace(/\r\n/g, "\n");

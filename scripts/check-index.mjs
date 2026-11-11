@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Fails if content/kb changed without re-running `npm run ingest`. Runs in Cloud Build before the image build.
+// Fails if content/handoff changed without re-running `npm run ingest`. Runs in Cloud Build before the image build.
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { contentHash } from "./lib/content-hash.mjs";
 

@@ -1,15 +1,14 @@
 import type { Env } from "../env";
-import { applyCitations } from "./citations";
 import { embedQuery } from "./embed";
-import { fallbackSources, FALLBACK_TEXT } from "./fallback";
-import { expandQuery, findAcronyms } from "./glossary";
+import { fallbackSources } from "./fallback";
 import type { LoadedIndex } from "./index-store";
-import { buildMessages, FALLBACK_TOKEN, maxContextChunks, type PromptMessage } from "./prompt";
+import { FALLBACK_MESSAGE, FALLBACK_TOKEN } from "./notebook";
+import { buildMessages, sourceLabel, type PromptMessage } from "./prompt";
 import { chatCompletion } from "./sealion";
-import { search } from "./search";
-import type { ChatTurn, Source } from "./types";
+import { retrieve } from "./search";
+import type { Source } from "./types";
 
-export type FallbackReason = "gate" | "model" | "ungrounded";
+export type FallbackReason = "gate" | "model" | "empty";
 
 export interface AnswerResult {
   answer: string;
@@ -20,9 +19,11 @@ export interface AnswerResult {
     top_score: number;
     gated: boolean;
     fallback_reason?: FallbackReason;
-    retrieved_urls: string[];
-    /** Chunk ids in rank order (eval scores Precision/Recall@k and MRR against these). */
+    /** Chunk ids in rank order (compared with the notebook's notebook_retrieved_ids). */
     retrieved_ids: string[];
+    /** Citation numbers found in the answer, and whether one points at a retrieved passage. */
+    cited: number[];
+    valid_citation: boolean;
     llm_called: boolean;
     /** Embed + search time, and SEA-LION time (0 when no call was made). */
     retrieval_ms: number;
@@ -50,60 +51,69 @@ export function defaultDeps(env: Env): AnswerDeps {
   };
 }
 
-type AnswerConfig = Pick<Env, "SEALION_MODEL" | "RETRIEVAL_TOP_K" | "RETRIEVAL_MIN_SCORE">;
+type AnswerConfig = Pick<Env, "RETRIEVAL_TOP_K" | "RETRIEVAL_MIN_SCORE">;
+
+const CITATION_RE = /\[(\d+)\]/g;
 
 /**
- * retrieve → gate → SEA-LION (at most one call) → citation check.
- * "I don't know" has three layers: the score gate, the model's FALLBACK token, and
- * dropping any answer left with no valid citation. Upstream errors propagate.
+ * The notebook's answer_question(): hybrid retrieval → optional score gate (off: RETRIEVAL_MIN_SCORE=0)
+ * → one SEA-LION call → a reply starting with FALLBACK (or, on the site only, an empty reply) becomes
+ * the fixed fallback message.
+ * require_citation is False in the final config, so uncited answers are kept. Each question is answered
+ * on its own: no conversation history. Upstream errors propagate.
  */
 export async function answerQuestion(
   question: string,
-  history: ChatTurn[],
   index: LoadedIndex,
   cfg: AnswerConfig,
   deps: AnswerDeps,
 ): Promise<AnswerResult> {
-  // Follow-ups: embed the current message with the previous user message.
-  const prevUser = [...history].reverse().find((t) => t.role === "user")?.content;
-  const retrievalText = prevUser ? `${prevUser}\n${question}` : question;
-
   const t0 = performance.now();
-  const qvec = await deps.embed(expandQuery(retrievalText));
-  const k = maxContextChunks(cfg.SEALION_MODEL, cfg.RETRIEVAL_TOP_K);
-  const results = search(qvec, index.chunks, { topK: k, acronyms: findAcronyms(retrievalText) });
+  const qvec = await deps.embed(question);
+  const { retrieved, top_vector_sim } = retrieve(
+    qvec,
+    question,
+    index.chunks,
+    index.bm25,
+    cfg.RETRIEVAL_TOP_K,
+  );
   const retrieval_ms = Math.round(performance.now() - t0);
-  const top = results.reduce((m, r) => Math.max(m, r.score), 0);
-  const base = {
-    top_score: round(top),
-    retrieved_urls: [...new Set(results.map((r) => r.url))],
-    retrieved_ids: results.map((r) => r.id),
-    retrieval_ms,
-  };
 
-  const fallback = (reason: FallbackReason, llm_called: boolean, generation_ms = 0): AnswerResult => ({
-    answer: FALLBACK_TEXT,
-    sources: fallbackSources(index.chunks),
-    fallback: true,
-    meta: { ...base, gated: reason === "gate", fallback_reason: reason, llm_called, generation_ms },
-  });
+  const gated = cfg.RETRIEVAL_MIN_SCORE > 0 && top_vector_sim < cfg.RETRIEVAL_MIN_SCORE;
+  let raw = "";
+  let generation_ms = 0;
+  if (!gated) {
+    const t1 = performance.now();
+    raw = await deps.chat(buildMessages(question, retrieved));
+    generation_ms = Math.round(performance.now() - t1);
+  }
 
-  if (results.length === 0 || top < cfg.RETRIEVAL_MIN_SCORE) return fallback("gate", false);
-
-  const t1 = performance.now();
-  const raw = await deps.chat(buildMessages(cfg.SEALION_MODEL, results, question, history));
-  const generation_ms = Math.round(performance.now() - t1);
-  if (!raw || raw.trim().replace(/[.\s]/g, "").toUpperCase().startsWith(FALLBACK_TOKEN))
-    return fallback("model", true, generation_ms);
-
-  const cited = applyCitations(raw, results);
-  if (!cited.grounded) return fallback("ungrounded", true, generation_ms);
+  const fallbackToken = raw.trim().toUpperCase().startsWith(FALLBACK_TOKEN);
+  // Site addition (owner-approved 2026-11-11): an empty reply shows the fallback message, not a blank answer.
+  const empty = !gated && raw.trim() === "";
+  const answer = gated || fallbackToken || empty ? FALLBACK_MESSAGE : raw;
+  const cited = [...new Set([...answer.matchAll(CITATION_RE)].map((m) => Number(m[1])))].sort(
+    (a, b) => a - b,
+  );
+  const valid_citation = cited.some((n) => n >= 1 && n <= retrieved.length);
+  const fallback = answer === FALLBACK_MESSAGE;
 
   return {
-    answer: cited.answer,
-    sources: cited.sources,
-    fallback: false,
-    meta: { ...base, gated: false, llm_called: true, generation_ms },
+    answer,
+    // The retrieved passages in rank order, so the [n] markers in the answer match the list.
+    sources: fallback ? fallbackSources() : retrieved.map((c) => ({ n: c.rank, title: sourceLabel(c) })),
+    fallback,
+    meta: {
+      top_score: round(top_vector_sim),
+      gated,
+      ...(fallback && { fallback_reason: gated ? "gate" : empty ? "empty" : "model" }),
+      retrieved_ids: retrieved.map((c) => c.id),
+      cited,
+      valid_citation,
+      llm_called: !gated,
+      retrieval_ms,
+      generation_ms,
+    },
   };
 }
 

@@ -1,10 +1,12 @@
+import { MAX_TOKENS, TEMPERATURE } from "./notebook";
 import type { PromptMessage } from "./prompt";
 
-/** SEA-LION chat via its OpenAI-compatible API, plain fetch, non-streaming. */
+/** SEA-LION chat via its OpenAI-compatible API, plain fetch, non-streaming (the notebook's call_llm). */
 export interface SeaLionConfig {
   baseUrl: string;
   apiKey: string;
   model: string;
+  /** Sends chat_template_kwargs thinking_mode "off". The notebook doesn't send it: keep SEALION_THINKING_OFF=false. */
   thinkingOff: boolean;
   timeoutMs: number;
 }
@@ -19,18 +21,6 @@ export class UpstreamError extends Error {
   }
 }
 
-/** Remove reasoning text that v3.5-R may still emit with thinking off. */
-export function stripReasoning(text: string): string {
-  let out = text.replace(/<think>[\s\S]*?<\/think>/gi, "");
-  // An unopened closing tag means everything before it was reasoning.
-  const close = out.toLowerCase().lastIndexOf("</think>");
-  if (close !== -1) out = out.slice(close + "</think>".length);
-  // An unclosed opening tag (cut off by max_tokens) means nothing usable follows.
-  const open = out.toLowerCase().indexOf("<think>");
-  if (open !== -1) out = out.slice(0, open);
-  return out.trim();
-}
-
 export async function chatCompletion(
   messages: PromptMessage[],
   { baseUrl, apiKey, model, thinkingOff, timeoutMs }: SeaLionConfig,
@@ -43,8 +33,8 @@ export async function chatCompletion(
       body: JSON.stringify({
         model,
         messages,
-        temperature: 0.2,
-        max_tokens: 600,
+        temperature: TEMPERATURE,
+        max_tokens: MAX_TOKENS,
         stream: false,
         ...(thinkingOff ? { chat_template_kwargs: { thinking_mode: "off" } } : {}),
       }),
@@ -56,5 +46,6 @@ export async function chatCompletion(
   }
   if (!res.ok) throw new UpstreamError(`SEA-LION returned HTTP ${res.status}`, res.status);
   const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-  return stripReasoning(json.choices?.[0]?.message?.content ?? "");
+  // Notebook: (response.choices[0].message.content or "").strip()
+  return (json.choices?.[0]?.message?.content ?? "").trim();
 }

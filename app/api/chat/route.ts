@@ -70,7 +70,8 @@ export async function POST(req: Request) {
 
   try {
     const result =
-      cached ?? (await answerQuestion(body.message, body.history, state.index, env, defaultDeps(env)));
+      // No history: the notebook answers each question on its own.
+      cached ?? (await answerQuestion(body.message, state.index, env, defaultDeps(env)));
     if (cacheable && !cached) suggestedCache.set(key, result);
     return done(
       200,

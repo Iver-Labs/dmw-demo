@@ -1,8 +1,9 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
+import { BM25Okapi, tokenize } from "./bm25";
 import { normalize } from "./search";
-import { SECTIONS, type IndexMeta, type LoadedChunk } from "./types";
+import type { IndexMeta, LoadedChunk } from "./types";
 
 export const INDEX_FILE = "data/index.json";
 export const META_FILE = "data/index.meta.json";
@@ -16,18 +17,28 @@ const metaSchema = z.object({
   builtAt: z.string().min(1),
 });
 
-const chunkSchema = z.object({
+/** Fields of content/handoff/chunks.jsonl, as written by the notebook (Section 15.1). */
+export const chunkSchema = z.object({
   id: z.string(),
+  source: z.enum(["PEOS", "DMW"]),
+  page: z.number().int().positive(),
+  record_no: z.number().int().positive().nullable(),
+  agency: z.string().nullable(),
   text: z.string(),
-  title: z.string(),
-  url: z.string(),
-  section: z.enum(SECTIONS),
-  vector: z.array(z.number()),
 });
+
+const indexedChunkSchema = chunkSchema.extend({ vector: z.array(z.number()) });
 
 export interface LoadedIndex {
   chunks: LoadedChunk[];
   meta: IndexMeta;
+  /** BM25 over the same chunks, built at load time (the notebook builds it with the index). */
+  bm25: BM25Okapi;
+}
+
+/** Build the in-memory index from chunks; also used by tests. */
+export function makeIndex(chunks: LoadedChunk[], meta: IndexMeta): LoadedIndex {
+  return { chunks, meta, bm25: new BM25Okapi(chunks.map((c) => tokenize(c.text))) };
 }
 
 export async function loadIndex(root = process.cwd()): Promise<LoadedIndex> {
@@ -36,7 +47,7 @@ export async function loadIndex(root = process.cwd()): Promise<LoadedIndex> {
     readFile(path.join(root, META_FILE), "utf8"),
   ]);
   const meta = metaSchema.parse(JSON.parse(rawMeta));
-  const entries = z.array(chunkSchema).parse(JSON.parse(rawIndex));
+  const entries = z.array(indexedChunkSchema).parse(JSON.parse(rawIndex));
   if (entries.length !== meta.chunks)
     throw new Error(`index has ${entries.length} chunks but meta says ${meta.chunks}`);
   const chunks = entries.map((e) => {
@@ -44,7 +55,7 @@ export async function loadIndex(root = process.cwd()): Promise<LoadedIndex> {
       throw new Error(`chunk ${e.id} has ${e.vector.length} dims, meta says ${meta.dims}`);
     return { ...e, vector: normalize(e.vector) };
   });
-  return { chunks, meta };
+  return makeIndex(chunks, meta);
 }
 
 /** Null when the index matches the runtime config, else the reason it can't be searched. */

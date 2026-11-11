@@ -1,114 +1,88 @@
 /**
- * npm run eval            — run eval/questions.jsonl through the pipeline in-process (local index + keys)
- * npm run eval -- --url https://…run.app   — run it against a deployed /api/chat (Eval v2)
+ * npm run eval — HANDOFF.md step 6: check that the site matches the notebook.
  *
- * Writes eval/results/<timestamp>.json and prints the metrics table for the README.
- * Answer correctness is judged by you: key_points hits are printed as a hint only.
+ * Sends every question in content/handoff/eval_questions.jsonl through the site's pipeline (the same
+ * answerQuestion() that /api/chat calls, with the local index and .env.local keys) and compares
+ *   - the retrieved top-3 chunk ids with notebook_retrieved_ids, and
+ *   - the answer and fallback with notebook_answer / notebook_fallback.
  *
- * Questions with an `evidence` field also get the group notebook's retrieval metrics
- * (Precision@k, Recall@k, MRR; see lib/eval/retrieval.ts). Those need the local index, so they
- * are skipped with --url.
+ * npm run eval -- --url https://…run.app   sends the questions to a deployed /api/chat instead;
+ * the API doesn't return chunk ids, so only answers and fallbacks are compared.
+ *
+ * Writes eval/results/<timestamp>-notebook-compare.json and prints the summary for the paper.
+ * Answers that differ in wording still need a human judgement of whether they agree.
  */
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { getEnv } from "../lib/env";
-import { mean, missingUnits, scoreRetrieval, type Evidence } from "../lib/eval/retrieval";
 import { answerQuestion, defaultDeps } from "../lib/rag/answer";
 import { indexMismatch, loadIndex } from "../lib/rag/index-store";
-import { loadKbDocs } from "../lib/rag/kb";
-import { maxContextChunks } from "../lib/rag/prompt";
-import type { Source } from "../lib/rag/types";
+import { HANDOFF_DIR } from "../lib/rag/notebook";
+import { UpstreamError } from "../lib/rag/sealion";
 
-type Lang = "en" | "fil" | "taglish";
-
-interface Question {
+interface EvalQuestion {
   id: string;
+  type: "answerable" | "unanswerable";
+  language: string;
   question: string;
-  lang: Lang;
-  key_points: string[];
-  expected_source_url: string | null;
-  in_scope: boolean;
-  /** Evidence units for retrieval scoring (phrases copied exactly from the source). */
-  evidence?: Evidence;
+  reference_answer: string;
+  notebook_answer: string;
+  notebook_retrieved_ids: string[];
+  notebook_fallback: boolean;
 }
 
-interface Retrieval {
-  precision: number;
-  recall: number;
-  rr: number;
-  units_per_rank: string;
-}
-
-interface Row extends Question {
+interface Site {
   answer: string;
-  sources: Source[];
   fallback: boolean;
-  latency_ms: number;
-  retrieved_urls?: string[];
   retrieved_ids?: string[];
   top_score?: number;
   llm_called?: boolean;
-  retrieval_ms?: number;
-  generation_ms?: number;
-  retrieval?: Retrieval;
+}
+
+interface Row extends EvalQuestion {
+  site_answer: string;
+  site_fallback: boolean;
+  site_retrieved_ids?: string[];
+  same_top3_order?: boolean;
+  same_top3_set?: boolean;
+  same_answer: boolean;
+  same_fallback: boolean;
+  latency_ms: number;
   error?: string;
 }
 
-const THROTTLE_MS = 7_000; // 10 req/min SEA-LION trial limit
-
-/** The group notebook's best run (Run M: PEOS 600/75, DMW 800/100, TOP_K 3, strict prompt). */
-const NOTEBOOK_BASELINE = { recall: 0.611, mrr: 0.481, precision: 0.278 };
+/** The notebook's MIN_SECONDS_BETWEEN_CALLS and retry policy (SEA-LION free tier: ~10 requests/min). */
+const MIN_MS_BETWEEN_CALLS = 6_500;
+const MAX_RETRIES = 6;
 
 const urlArg = process.argv.indexOf("--url");
 const remote = urlArg !== -1 ? process.argv[urlArg + 1]?.replace(/\/$/, "") : undefined;
 
-function loadQuestions(): Question[] {
-  return readFileSync("eval/questions.jsonl", "utf8")
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean)
-    .map((l, i) => {
-      try {
-        return JSON.parse(l) as Question;
-      } catch {
-        throw new Error(`eval/questions.jsonl line ${i + 1} is not valid JSON`);
-      }
-    });
-}
-
-/** Rough Filipino detector, good enough to flag language mismatches for manual review. */
-const FIL_WORDS =
-  /\b(ang|ng|mga|sa|ko|ba|po|paano|kung|naman|yung|ako|kayo|ito|hindi|wala|may|kailangan|pwede|saan|ano|sila|natin|niyo)\b/gi;
-export function looksFilipino(text: string): boolean {
-  const words = text.split(/\s+/).filter(Boolean).length || 1;
-  return (text.match(FIL_WORDS)?.length ?? 0) / words >= 0.08;
-}
-
-const pct = (n: number, d: number) => (d === 0 ? "n/a" : `${Math.round((100 * n) / d)}% (${n}/${d})`);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-const median = (values: number[]) => {
-  const v = [...values].sort((a, b) => a - b);
-  return v.length ? v[Math.floor(v.length / 2)] : 0;
-};
-const f3 = (n: number) => n.toFixed(3);
+const same = (a: string[], b: string[]) => a.length === b.length && a.every((x, i) => x === b[i]);
+const pct = (n: number, d: number) => (d === 0 ? "n/a" : `${n}/${d} (${Math.round((100 * n) / d)}%)`);
+
+function loadQuestions(): EvalQuestion[] {
+  return readFileSync(`${HANDOFF_DIR}/eval_questions.jsonl`, "utf8")
+    .split("\n")
+    .filter((l) => l.trim())
+    .map((l) => JSON.parse(l) as EvalQuestion);
+}
 
 async function main() {
   const questions = loadQuestions();
-  const rows: Row[] = [];
-  let ask: (q: Question) => Promise<Omit<Row, keyof Question>>;
-  /** Questions whose evidence can't be found in content/kb; left out of the retrieval averages. */
-  const unscorable = new Map<string, string[]>();
+  let ask: (q: string) => Promise<Site>;
 
   if (remote) {
     ask = async (q) => {
-      const t = performance.now();
       const res = await fetch(`${remote}/api/chat`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ message: q.question }),
+        body: JSON.stringify({ message: q }),
       });
       const data = await res.json();
+      if (res.status === 429) throw new UpstreamError("rate limited", 429);
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${data.error}`);
-      return { ...data, latency_ms: Math.round(performance.now() - t) };
+      return { answer: data.answer, fallback: data.fallback };
     };
   } else {
     const env = getEnv();
@@ -116,133 +90,98 @@ async function main() {
     const mismatch = indexMismatch(index.meta, env);
     if (mismatch) throw new Error(mismatch);
     const deps = defaultDeps(env);
-    const k = maxContextChunks(env.SEALION_MODEL, env.RETRIEVAL_TOP_K);
-    const textById = new Map(index.chunks.map((c) => [c.id, c.text]));
-
-    // Port of the notebook's check_evidence_phrases(): match against whole documents.
-    const corpus = loadKbDocs().map((d) => `${d.title}\n${d.body}`);
-    for (const q of questions) {
-      if (!q.evidence) continue;
-      const missing = missingUnits(q.evidence, corpus);
-      if (missing.length) unscorable.set(q.id, missing);
-    }
-    if (unscorable.size)
-      console.warn(
-        `WARNING: evidence not found in content/kb for ${[...unscorable].map(([id, u]) => `${id} ${u.join(",")}`).join("; ")}.\n` +
-          "These questions are left out of Precision/Recall/MRR (source not ingested yet, or a typo in the evidence).\n",
-      );
-
     ask = async (q) => {
-      const t = performance.now();
-      const r = await answerQuestion(q.question, [], index, env, deps);
-      let retrieval: Retrieval | undefined;
-      if (q.evidence && !unscorable.has(q.id)) {
-        const texts = r.meta.retrieved_ids.map((id) => textById.get(id) ?? "");
-        const s = scoreRetrieval(texts, q.evidence, k);
-        retrieval = {
-          precision: s.precision,
-          recall: s.recall,
-          rr: s.reciprocalRank,
-          units_per_rank: s.coveredPerRank
-            .map((u, i) => `#${i + 1} ${r.meta.retrieved_ids[i]} [${u.join(",") || "-"}]`)
-            .join(" | "),
-        };
-      }
+      const r = await answerQuestion(q, index, env, deps);
       return {
         answer: r.answer,
-        sources: r.sources,
         fallback: r.fallback,
-        latency_ms: Math.round(performance.now() - t),
-        retrieved_urls: r.meta.retrieved_urls,
         retrieved_ids: r.meta.retrieved_ids,
         top_score: r.meta.top_score,
         llm_called: r.meta.llm_called,
-        retrieval_ms: r.meta.retrieval_ms,
-        generation_ms: r.meta.generation_ms,
-        retrieval,
       };
     };
   }
 
+  const rows: Row[] = [];
+  let lastCall = 0;
   for (const [i, q] of questions.entries()) {
-    let row: Row;
-    try {
-      row = { ...q, ...(await ask(q)) };
-    } catch (err) {
-      row = { ...q, answer: "", sources: [], fallback: false, latency_ms: 0, error: String(err) };
+    let site: Site | undefined;
+    let error: string | undefined;
+    const t = performance.now();
+    for (let attempt = 1; attempt <= MAX_RETRIES && !site; attempt++) {
+      const gap = MIN_MS_BETWEEN_CALLS - (Date.now() - lastCall);
+      if (gap > 0) await sleep(gap);
+      lastCall = Date.now();
+      try {
+        site = await ask(q.question);
+      } catch (err) {
+        const retryable = err instanceof UpstreamError && [429, 500, 502, 503, 504].includes(err.status);
+        error = String(err);
+        if (!retryable) break;
+        const backoff = Math.min(60, 5 * 2 ** (attempt - 1));
+        console.log(
+          `  ${q.id}: SEA-LION busy (${err.status}); retry ${attempt}/${MAX_RETRIES} in ${backoff} s`,
+        );
+        await sleep(backoff * 1000);
+      }
+    }
+
+    const row: Row = {
+      ...q,
+      site_answer: site?.answer ?? "",
+      site_fallback: site?.fallback ?? false,
+      site_retrieved_ids: site?.retrieved_ids,
+      same_answer: site ? site.answer.trim() === q.notebook_answer.trim() : false,
+      same_fallback: site ? site.fallback === q.notebook_fallback : false,
+      latency_ms: Math.round(performance.now() - t),
+      ...(site ? {} : { error }),
+    };
+    if (site?.retrieved_ids) {
+      row.same_top3_order = same(site.retrieved_ids, q.notebook_retrieved_ids);
+      row.same_top3_set = same([...site.retrieved_ids].sort(), [...q.notebook_retrieved_ids].sort());
     }
     rows.push(row);
-    const hint = q.key_points.filter((kp) => row.answer.toLowerCase().includes(kp.toLowerCase())).length;
-    const ret = row.retrieval
-      ? ` | P ${row.retrieval.precision.toFixed(2)} R ${row.retrieval.recall.toFixed(2)} RR ${row.retrieval.rr.toFixed(2)}`
-      : "";
+
+    const ids =
+      row.same_top3_order === undefined
+        ? ""
+        : row.same_top3_order
+          ? " | top-3 ids same"
+          : row.same_top3_set
+            ? " | top-3 ids same set, different order"
+            : ` | top-3 ids DIFFER: notebook ${q.notebook_retrieved_ids.join(",")} site ${row.site_retrieved_ids!.join(",")}`;
     console.log(
-      `${i + 1}/${questions.length} ${q.id} ${row.error ? "ERROR" : row.fallback ? "FALLBACK" : "answered"}` +
-        ` key_points ${hint}/${q.key_points.length} ${row.latency_ms}ms${ret}`,
+      `${i + 1}/${questions.length} ${q.id} ${row.error ? `ERROR ${row.error}` : row.site_fallback ? "FALLBACK" : "answered"}` +
+        `${ids} | answer ${row.same_answer ? "identical" : "differs"} | fallback ${row.same_fallback ? "agrees" : "DIFFERS"}`,
     );
-    // Gated questions made no LLM call, so they don't need the throttle.
-    if (i < questions.length - 1 && (remote || row.llm_called)) await sleep(THROTTLE_MS);
   }
 
-  const inScope = rows.filter((r) => r.in_scope && r.expected_source_url);
-  const outScope = rows.filter((r) => !r.in_scope);
-  const local = inScope.filter((r) => r.retrieved_urls);
   const ok = rows.filter((r) => !r.error);
-  const answered = ok.filter((r) => !r.fallback);
-  const scored = rows.filter((r) => r.retrieval);
-
-  const retrievalSummary = (subset: Row[]) =>
-    subset.length === 0
-      ? "n/a"
-      : `P@k ${f3(mean(subset.map((r) => r.retrieval!.precision)))} · ` +
-        `R@k ${f3(mean(subset.map((r) => r.retrieval!.recall)))} · ` +
-        `MRR ${f3(mean(subset.map((r) => r.retrieval!.rr)))} (${subset.length} q)`;
-
-  const metrics: Record<string, string> = {
-    "Retrieval hit rate (target ≥ 90%)": remote
+  const withIds = ok.filter((r) => r.same_top3_order !== undefined);
+  const ans = ok.filter((r) => r.type === "answerable");
+  const una = ok.filter((r) => r.type === "unanswerable");
+  const summary: Record<string, string> = {
+    "Question versions": `${rows.length} (${rows.length - ok.length} errors)`,
+    "Same top-3 chunk ids, same order": remote
       ? "n/a (remote)"
-      : pct(local.filter((r) => r.retrieved_urls!.includes(r.expected_source_url!)).length, local.length),
-    [`Retrieval P@k / R@k / MRR (notebook Run M: R@3 ${NOTEBOOK_BASELINE.recall}, MRR ${NOTEBOOK_BASELINE.mrr})`]:
-      remote ? "n/a (remote)" : retrievalSummary(scored),
-    "  English": remote ? "n/a" : retrievalSummary(scored.filter((r) => r.lang === "en")),
-    "  Filipino": remote ? "n/a" : retrievalSummary(scored.filter((r) => r.lang === "fil")),
-    "  Taglish": remote ? "n/a" : retrievalSummary(scored.filter((r) => r.lang === "taglish")),
-    "Answer correctness (target ≥ 80%)": "judge manually from the results file",
-    "Citation accuracy (target ≥ 80%)": pct(
-      inScope.filter((r) => r.sources.some((s) => s.url === r.expected_source_url)).length,
-      inScope.length,
-    ),
-    "Out-of-scope refusal (target ≥ 5 of 6)": pct(outScope.filter((r) => r.fallback).length, outScope.length),
-    "Language match (target ≥ 90%, heuristic)": pct(
-      answered.filter((r) => looksFilipino(r.answer) === (r.lang !== "en")).length,
-      answered.length,
-    ),
-    "Median latency (target < 6 s)": `${(median(ok.map((r) => r.latency_ms)) / 1000).toFixed(1)} s`,
+      : pct(withIds.filter((r) => r.same_top3_order).length, withIds.length),
+    "Same top-3 chunk ids, any order": remote
+      ? "n/a (remote)"
+      : pct(withIds.filter((r) => r.same_top3_set).length, withIds.length),
+    "Identical answer text": pct(ok.filter((r) => r.same_answer).length, ok.length),
+    "Same fallback decision": pct(ok.filter((r) => r.same_fallback).length, ok.length),
+    "Fallback on answerable (notebook / site)": `${ans.filter((r) => r.notebook_fallback).length} / ${ans.filter((r) => r.site_fallback).length} of ${ans.length}`,
+    "Fallback on unanswerable (notebook / site)": `${una.filter((r) => r.notebook_fallback).length} / ${una.filter((r) => r.site_fallback).length} of ${una.length}`,
   };
-  if (!remote) {
-    const generated = ok.filter((r) => r.llm_called);
-    metrics["  Median retrieval / generation"] =
-      `${median(ok.map((r) => r.retrieval_ms ?? 0))} ms / ` +
-      (generated.length
-        ? `${(median(generated.map((r) => r.generation_ms ?? 0)) / 1000).toFixed(1)} s`
-        : "n/a");
-  }
-  const unlabelled = rows.filter((r) => r.in_scope && !r.expected_source_url).length;
 
   mkdirSync("eval/results", { recursive: true });
-  const file = `eval/results/${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
-  writeFileSync(
-    file,
-    JSON.stringify(
-      { target: remote ?? "local", metrics, unscorable: Object.fromEntries(unscorable), rows },
-      null,
-      2,
-    ),
-  );
+  const file = `eval/results/${new Date().toISOString().replace(/[:.]/g, "-")}-notebook-compare.json`;
+  writeFileSync(file, JSON.stringify({ target: remote ?? "local", summary, rows }, null, 2));
 
-  console.log("\n| Metric | Result |\n| --- | --- |");
-  for (const [key, v] of Object.entries(metrics)) console.log(`| ${key} | ${v} |`);
-  if (unlabelled) console.log(`\n${unlabelled} in-scope question(s) have no expected_source_url yet.`);
+  console.log("\n| Check | Result |\n| --- | --- |");
+  for (const [k, v] of Object.entries(summary)) console.log(`| ${k} | ${v} |`);
+  const differing = ok.filter((r) => !r.same_answer).map((r) => r.id);
+  if (differing.length) console.log(`\nAnswers to judge by hand (wording differs): ${differing.join(", ")}`);
   console.log(`\nSaved ${file}`);
 }
 

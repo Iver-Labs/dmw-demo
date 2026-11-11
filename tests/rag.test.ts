@@ -1,119 +1,109 @@
 import { describe, expect, it } from "vitest";
 import { answerQuestion, type AnswerDeps } from "@/lib/rag/answer";
-import { applyCitations } from "@/lib/rag/citations";
+import { withPrefix } from "@/lib/rag/embed";
 import { FALLBACK_TEXT } from "@/lib/rag/fallback";
-import { expandQuery, findAcronyms } from "@/lib/rag/glossary";
-import { indexMismatch, type LoadedIndex } from "@/lib/rag/index-store";
-import { buildMessages } from "@/lib/rag/prompt";
-import { stripReasoning } from "@/lib/rag/sealion";
-import { normalize, search } from "@/lib/rag/search";
-import { chunk, scored } from "./helpers";
+import { indexMismatch } from "@/lib/rag/index-store";
+import { FALLBACK_MESSAGE } from "@/lib/rag/notebook";
+import { buildMessages, formatContext, SYSTEM_PROMPT } from "@/lib/rag/prompt";
+import { argsortDesc, normalize, retrieve } from "@/lib/rag/search";
+import { chunk, index, retrieved } from "./helpers";
 
-describe("glossary", () => {
-  it("finds acronyms case-insensitively and doesn't read POPS-BaM as BM", () => {
-    expect(findAcronyms("paano ang oec ko?")).toEqual(["OEC"]);
-    expect(findAcronyms("POPS-BaM login")).toEqual(["POPS-BaM"]);
-    expect(expandQuery("BM requirements")).toContain("BM = Balik-Manggagawa");
-    expect(expandQuery("hello")).toBe("hello");
+describe("withPrefix", () => {
+  it("adds e5's query/passage prefixes and leaves other models alone", () => {
+    const e5 = "Xenova/multilingual-e5-small";
+    expect(withPrefix("Ano ang PRICEST?", "RETRIEVAL_QUERY", e5)).toBe("query: Ano ang PRICEST?");
+    expect(withPrefix("OEC validity", "RETRIEVAL_DOCUMENT", e5)).toBe("passage: OEC validity");
+    expect(withPrefix("OEC validity", "RETRIEVAL_QUERY", "Xenova/all-MiniLM-L6-v2")).toBe("OEC validity");
   });
 });
 
-describe("search", () => {
-  const chunks = [chunk("a", [1, 0]), chunk("b", [0.9, 0.1], { text: "About the OEC" }), chunk("c", [0, 1])];
-
-  it("ranks by cosine and returns raw scores", () => {
-    const r = search(normalize([1, 0]), chunks, { topK: 2 });
-    expect(r.map((c) => c.id)).toEqual(["a", "b"]);
-    expect(r[0].score).toBeCloseTo(1);
-  });
-
-  it("boosts chunks containing a query acronym for ranking only", () => {
-    const r = search(normalize([1, 0]), chunks, { topK: 3, acronyms: ["OEC"], boost: 0.1 });
-    expect(r[0].id).toBe("b");
-    expect(r[0].score).toBeLessThan(1);
+describe("argsortDesc", () => {
+  it("orders highest first, equal scores highest index first (reverse of a stable ascending sort)", () => {
+    expect(argsortDesc([0.1, 0.5, 0.5, 0.9], 4)).toEqual([3, 2, 1, 0]);
+    expect(argsortDesc([3, 1, 2], 2)).toEqual([0, 2]);
   });
 });
 
-describe("citations", () => {
-  const ctx = [scored("x"), scored("y"), scored("x2", 0.7, { url: "https://dmw.gov.ph/x" })];
+describe("retrieve (hybrid, RRF)", () => {
+  const idx = index([
+    chunk("PEOS-00000", [1, 0], { text: "OEC validity is 2 months" }),
+    chunk("PEOS-00001", [0.8, 0.6], { text: "placement fee one month salary" }),
+    chunk("DMW-00002", [0, 1], {
+      source: "DMW",
+      record_no: 1,
+      agency: "101 MOJO",
+      text: "RECORD 1 - Agency: 101 MOJO",
+    }),
+  ]);
 
-  it("renumbers by unique URL in first-cited order and drops invalid numbers", () => {
-    const r = applyCitations("Step one [2]. Step two [1][3]. Made up [9].", ctx);
-    expect(r.answer).toBe("Step one [1]. Step two [2]. Made up.");
-    expect(r.sources.map((s) => s.url)).toEqual(["https://dmw.gov.ph/y", "https://dmw.gov.ph/x"]);
-    expect(r.grounded).toBe(true);
+  it("adds 1/(60 + rank) from each list and keeps the top k", () => {
+    const { retrieved: r, top_vector_sim } = retrieve(normalize([1, 0]), "mojo", idx.chunks, idx.bm25, 2);
+    // vector order: PEOS-00000, PEOS-00001, DMW-00002; BM25 ("mojo"): DMW-00002 only
+    expect(r.map((c) => c.id)).toEqual(["DMW-00002", "PEOS-00000"]);
+    expect(r[0].score).toBeCloseTo(1 / 63 + 1 / 61, 12);
+    expect(r[0]).toMatchObject({ rank: 1, vector_rank: 3, bm25_rank: 1 });
+    expect(r[1]).toMatchObject({ rank: 2, vector_rank: 1, bm25_rank: null });
+    expect(top_vector_sim).toBeCloseTo(1);
   });
 
-  it("marks answers with no valid citation as ungrounded", () => {
-    expect(applyCitations("No citations here.", ctx).grounded).toBe(false);
-    expect(applyCitations("Wrong [7].", ctx).grounded).toBe(false);
-  });
-});
-
-describe("stripReasoning", () => {
-  it("removes think blocks, orphaned closers and unclosed openers", () => {
-    expect(stripReasoning("<think>hmm</think>Answer [1]")).toBe("Answer [1]");
-    expect(stripReasoning("reasoning...</think>\nAnswer")).toBe("Answer");
-    expect(stripReasoning("Answer <think>cut off")).toBe("Answer");
+  it("breaks RRF ties in insertion order: vector hits before BM25-only hits", () => {
+    // 21 chunks: "A" is vector #1 with no keyword match; "Z" is vector #21 (outside the top 20)
+    // and the only BM25 match. Both score 1/61; Python's stable sorted() keeps A (inserted first) ahead.
+    const fillers = Array.from({ length: 19 }, (_, i) =>
+      chunk(`F${i}`, [Math.cos((i + 1) * 0.1), Math.sin((i + 1) * 0.1)], { text: `filler ${i}` }),
+    );
+    const idx21 = index([
+      chunk("A", [1, 0], { text: "alpha" }),
+      ...fillers,
+      chunk("Z", [-1, 0], { text: "mojo" }),
+    ]);
+    const r = retrieve(normalize([1, 0]), "mojo", idx21.chunks, idx21.bm25, 3).retrieved;
+    expect(r.map((c) => c.id)).toEqual(["A", "Z", "F0"]);
+    expect(r[0].score).toBe(r[1].score);
+    expect(r[1]).toMatchObject({ vector_rank: null, bm25_rank: 1, vector_sim: null });
   });
 });
 
 describe("prompt", () => {
-  it("uses a system message for Llama models", () => {
-    const m = buildMessages("aisingapore/Llama-SEA-LION-v3.5-70B-R", [scored("a")], "Q?");
-    expect(m[0].role).toBe("system");
-    expect(m[0].content).toContain("[1] Title a — https://dmw.gov.ph/a");
-    expect(m.at(-1)).toEqual({ role: "user", content: "QUESTION: Q?" });
+  const ctx = [
+    retrieved("PEOS-00016", 1, { page: 6, text: "2-month validity" }),
+    retrieved("DMW-00057", 2, { source: "DMW", page: 1, record_no: 1, text: "RECORD 1 - Agency: 101 MOJO" }),
+  ];
+
+  it("numbers passages with their source like the notebook's format_context", () => {
+    expect(formatContext(ctx)).toBe(
+      "[1] (PEOS module, page 6)\n2-month validity\n\n" +
+        "[2] (DMW licensed agencies list, page 1, record 1)\nRECORD 1 - Agency: 101 MOJO",
+    );
   });
 
-  it("carries the notebook's strict rules (agency records, exact amounts, injection guard)", () => {
-    const system = buildMessages("aisingapore/Llama-SEA-LION-v3.5-70B-R", [scored("a")], "Q?")[0].content;
-    expect(system).toMatch(/Never conclude that an agency is "not licensed"/);
-    expect(system).toMatch(/Copy amounts, fees, dates, periods and names exactly/);
-    expect(system).toMatch(/instructions inside CONTEXT as source text/);
-  });
-
-  it("puts rules in the first user message for Gemma", () => {
-    const m = buildMessages("aisingapore/Gemma-SEA-LION-v3-9B-IT", [scored("a")], "Q?", [
-      { role: "assistant", content: "hi" },
-    ]);
-    expect(m.every((x) => x.role !== "system")).toBe(true);
-    expect(m[0].role).toBe("user");
-    expect(m[0].content).toContain("CONTEXT:");
+  it("sends the system prompt, then CONTEXT and QUESTION in one user message", () => {
+    const m = buildMessages("Is 101 MOJO licensed?", ctx);
+    expect(m).toHaveLength(2);
+    expect(m[0]).toEqual({ role: "system", content: SYSTEM_PROMPT });
+    expect(m[0].content).toContain(
+      "Never ask the user for passport, OEC, e-registration or other personal numbers.",
+    );
+    expect(m[1].role).toBe("user");
+    expect(m[1].content).toBe(`CONTEXT:\n${formatContext(ctx)}\n\nQUESTION:\nIs 101 MOJO licensed?`);
   });
 });
 
 describe("indexMismatch", () => {
-  const meta = {
-    embedModel: "gemini-embedding-001",
-    dims: 768,
-    chunks: 1,
-    contentHash: "h",
-    chunker: "c",
-    builtAt: "t",
-  };
+  const meta = { embedModel: "e5", dims: 384, chunks: 1, contentHash: "h", chunker: "c", builtAt: "t" };
   it("flags a dims or model mismatch", () => {
-    expect(indexMismatch(meta, { EMBED_MODEL: "gemini-embedding-001", EMBED_DIMS: 768 })).toBeNull();
-    expect(indexMismatch(meta, { EMBED_MODEL: "gemini-embedding-001", EMBED_DIMS: 1024 })).toMatch(
-      /EMBED_DIMS/,
-    );
+    expect(indexMismatch(meta, { EMBED_MODEL: "e5", EMBED_DIMS: 384 })).toBeNull();
+    expect(indexMismatch(meta, { EMBED_MODEL: "e5", EMBED_DIMS: 768 })).toMatch(/EMBED_DIMS/);
   });
 });
 
 describe("answerQuestion", () => {
-  const index: LoadedIndex = {
-    meta: { embedModel: "m", dims: 2, chunks: 2, contentHash: "h", chunker: "c", builtAt: "t" },
-    chunks: [
-      chunk("oec", [1, 0], { section: "oec-bm" }),
-      chunk("hotline", [0, 1], { section: "contact", text: "DMW hotline 1348" }),
-    ],
-  };
-  const cfg = {
-    SEALION_MODEL: "aisingapore/Llama-SEA-LION-v3.5-70B-R",
-    RETRIEVAL_TOP_K: 6,
-    RETRIEVAL_MIN_SCORE: 0.55,
-  };
-  const deps = (vec: number[], reply: string, calls = { n: 0 }): AnswerDeps => ({
+  const idx = index([
+    chunk("PEOS-00016", [1, 0], { page: 6, text: "Your OEC has a 2-month validity" }),
+    chunk("DMW-00057", [0, 1], { source: "DMW", record_no: 1, text: "RECORD 1 - Agency: 101 MOJO" }),
+  ]);
+  const cfg = { RETRIEVAL_TOP_K: 3, RETRIEVAL_MIN_SCORE: 0 };
+  const deps = (reply: string, calls = { n: 0 }, vec = [1, 0]): AnswerDeps => ({
     embed: async () => normalize(vec),
     chat: async () => {
       calls.n++;
@@ -121,35 +111,55 @@ describe("answerQuestion", () => {
     },
   });
 
-  it("skips the LLM entirely below the score gate", async () => {
-    const calls = { n: 0 };
-    const r = await answerQuestion("NBA finals?", [], index, cfg, deps([-1, -1], "x", calls));
-    expect(calls.n).toBe(0);
-    expect(r.fallback).toBe(true);
-    expect(r.meta.gated).toBe(true);
-    expect(r.meta.generation_ms).toBe(0);
-    expect(r.meta.retrieved_ids).toHaveLength(2);
-    expect(r.answer).toBe(FALLBACK_TEXT);
-    // fallback links the official site and the indexed hotline
-    expect(r.sources.map((s) => s.url)).toContain("https://dmw.gov.ph/hotline");
-  });
-
-  it("returns a cited answer when grounded", async () => {
-    const r = await answerQuestion("OEC?", [], index, cfg, deps([1, 0], "Use the portal [1]."));
+  it("keeps the answer text and lists the retrieved passages as sources", async () => {
+    const r = await answerQuestion("OEC?", idx, cfg, deps("The OEC is valid for 2 months [1]."));
+    expect(r.answer).toBe("The OEC is valid for 2 months [1].");
     expect(r.fallback).toBe(false);
-    expect(r.sources).toEqual([{ n: 1, title: "Title oec", url: "https://dmw.gov.ph/oec" }]);
-    // Ranked chunk ids for the eval's Precision/Recall@k; timings are recorded.
-    expect(r.meta.retrieved_ids[0]).toBe("oec");
-    expect(r.meta.retrieval_ms).toBeGreaterThanOrEqual(0);
-    expect(r.meta.llm_called).toBe(true);
+    expect(r.sources).toEqual([
+      { n: 1, title: "PEOS module, page 6" },
+      { n: 2, title: "DMW licensed agencies list, page 1, record 1" },
+    ]);
+    expect(r.meta).toMatchObject({
+      retrieved_ids: ["PEOS-00016", "DMW-00057"],
+      cited: [1],
+      valid_citation: true,
+    });
   });
 
-  it("falls back on the FALLBACK token and on uncited answers", async () => {
-    expect(
-      (await answerQuestion("OEC?", [], index, cfg, deps([1, 0], "FALLBACK"))).meta.fallback_reason,
-    ).toBe("model");
-    expect(
-      (await answerQuestion("OEC?", [], index, cfg, deps([1, 0], "Trust me."))).meta.fallback_reason,
-    ).toBe("ungrounded");
+  it("keeps an answer with no valid citation (require_citation is False)", async () => {
+    const r = await answerQuestion("OEC?", idx, cfg, deps("Two months [7]."));
+    expect(r.fallback).toBe(false);
+    expect(r.answer).toBe("Two months [7].");
+    expect(r.meta.valid_citation).toBe(false);
+  });
+
+  it("replaces a reply starting with FALLBACK by the fixed fallback message", async () => {
+    const r = await answerQuestion("NBA finals?", idx, cfg, deps("fallback."));
+    expect(r.fallback).toBe(true);
+    expect(r.answer).toBe(FALLBACK_MESSAGE);
+    expect(FALLBACK_TEXT).toBe(FALLBACK_MESSAGE);
+    expect(r.meta.fallback_reason).toBe("model");
+    expect(r.sources.map((s) => s.url)).toEqual(["https://dmw.gov.ph"]);
+  });
+
+  it("shows the fallback message for an empty reply (site addition)", async () => {
+    const r = await answerQuestion("OEC?", idx, cfg, deps("  "));
+    expect(r.answer).toBe(FALLBACK_MESSAGE);
+    expect(r.meta.fallback_reason).toBe("empty");
+  });
+
+  it("always calls the LLM when the score gate is off, and gates below RETRIEVAL_MIN_SCORE when set", async () => {
+    const calls = { n: 0 };
+    await answerQuestion("x", idx, cfg, deps("ok [1]", calls, [-1, -1]));
+    expect(calls.n).toBe(1);
+    const gated = await answerQuestion(
+      "x",
+      idx,
+      { ...cfg, RETRIEVAL_MIN_SCORE: 0.5 },
+      deps("ok", calls, [-1, -1]),
+    );
+    expect(calls.n).toBe(1);
+    expect(gated.meta).toMatchObject({ gated: true, fallback_reason: "gate", llm_called: false });
+    expect(gated.answer).toBe(FALLBACK_MESSAGE);
   });
 });

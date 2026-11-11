@@ -22,9 +22,9 @@ describe("RateLimiter", () => {
 
 describe("contentHash", () => {
   it("is stable across CRLF and changes when content changes", () => {
-    const root = mkdtempSync(path.join(tmpdir(), "kb-"));
-    mkdirSync(path.join(root, "content", "kb"), { recursive: true });
-    const f = path.join(root, "content", "kb", "a.md");
+    const root = mkdtempSync(path.join(tmpdir(), "handoff-"));
+    mkdirSync(path.join(root, "content", "handoff"), { recursive: true });
+    const f = path.join(root, "content", "handoff", "chunks.jsonl");
     writeFileSync(f, "line1\nline2\n");
     const h1 = contentHash(root);
     writeFileSync(f, "line1\r\nline2\r\n");

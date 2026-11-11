@@ -1,15 +1,15 @@
 /**
- * npm run ingest — content/kb/*.md → chunks → local MiniLM embeddings → data/index.json + index.meta.json.
- * Run it outside Docker, then commit the content and both data files together.
+ * npm run ingest — content/handoff/chunks.jsonl (the notebook's FINAL chunks, NOT re-chunked)
+ * → local multilingual-e5-small embeddings ("passage: " prefix) → data/index.json + index.meta.json.
+ * Run it outside Docker, then commit content/handoff and both data files together.
  * Needs EMBED_MODEL and EMBED_DIMS (read from .env.local) and the model in models/
  * (`npm run ingest` fetches and verifies it first). No API key.
  */
-import { mkdirSync, writeFileSync } from "node:fs";
-import { CHUNKER_ID, chunkDoc } from "../lib/rag/chunk";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { embedBatch } from "../lib/rag/embed";
-import { INDEX_FILE, META_FILE } from "../lib/rag/index-store";
-import { loadKbDocs } from "../lib/rag/kb";
-import type { IndexedChunk, IndexMeta } from "../lib/rag/types";
+import { chunkSchema, INDEX_FILE, META_FILE } from "../lib/rag/index-store";
+import { CHUNKER_ID, CHUNKS_FILE, HANDOFF_DIR } from "../lib/rag/notebook";
+import type { Chunk, IndexedChunk, IndexMeta } from "../lib/rag/types";
 import { contentHash } from "./lib/content-hash.mjs"; // shared with check-index
 
 const BATCH = 256; // progress-report granularity; embed.ts runs 32 texts per forward pass
@@ -23,17 +23,34 @@ function need(name: string): string {
   return v;
 }
 
+function loadChunks(): Chunk[] {
+  const lines = readFileSync(CHUNKS_FILE, "utf8")
+    .split("\n")
+    .filter((l) => l.trim());
+  const chunks = lines.map((l, i) => {
+    try {
+      return chunkSchema.parse(JSON.parse(l));
+    } catch (err) {
+      throw new Error(`${CHUNKS_FILE} line ${i + 1}: ${err instanceof Error ? err.message : err}`);
+    }
+  });
+  const config = JSON.parse(readFileSync(`${HANDOFF_DIR}/final_config.json`, "utf8"));
+  const expected = config.chunking.total_chunks;
+  if (chunks.length !== expected)
+    throw new Error(`${CHUNKS_FILE} has ${chunks.length} chunks; final_config.json says ${expected}`);
+  if (new Set(chunks.map((c) => c.id)).size !== chunks.length)
+    throw new Error(`${CHUNKS_FILE} has duplicate ids`);
+  return chunks;
+}
+
 async function main() {
   const model = need("EMBED_MODEL");
   const dims = Number(need("EMBED_DIMS"));
 
-  const docs = loadKbDocs();
-  if (docs.length === 0) {
-    console.error("ingest: content/kb has no .md files yet (see content/README.md)");
-    process.exit(1);
-  }
-  const chunks = docs.flatMap(chunkDoc);
-  console.log(`ingest: ${docs.length} docs → ${chunks.length} chunks; embedding with ${model}/${dims}`);
+  const chunks = loadChunks();
+  console.log(
+    `ingest: ${chunks.length} notebook chunks from ${CHUNKS_FILE}; embedding with ${model}/${dims}`,
+  );
 
   const indexed: IndexedChunk[] = [];
   for (let i = 0; i < chunks.length; i += BATCH) {
@@ -60,7 +77,7 @@ async function main() {
   mkdirSync("data", { recursive: true });
   writeFileSync(INDEX_FILE, JSON.stringify(indexed));
   writeFileSync(META_FILE, JSON.stringify(meta, null, 2) + "\n");
-  console.log(`ingest: wrote ${INDEX_FILE} and ${META_FILE}. Commit them with the content.`);
+  console.log(`ingest: wrote ${INDEX_FILE} and ${META_FILE}. Commit them with ${HANDOFF_DIR}.`);
 }
 
 main().catch((err) => {
